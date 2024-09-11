@@ -1,0 +1,42 @@
+# If you prefer the allow list template instead of the deny list, see community template:
+# https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
+#
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Sam builds
+.aws-sam/
+
+#Environment vars
+.envrc
+.env
+
+# Tests
+unit-tests.xml
+
+
+# OS
+.DS_Store
+
+# AWS CDK
+cdk/**/*.js
+!cdk/esbuild.config.js
+!cdk/jest.config.js
+cdk/**/*.d.ts
+cdk/.cdk.staging
+cdk/cdk.out/
+cdk/cdk.context.json
+
+# Node
+node_modules/
+
