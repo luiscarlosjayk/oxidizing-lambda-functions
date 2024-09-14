@@ -1,7 +1,7 @@
 {
-    "name": "node-20-process-file",
+    "name": "node-llrt-process-file",
     "version": "0.1.0",
-    "description": "Node20.x lambda to process file in source bucket",
+    "description": "Node LLRT lambda to process file in source bucket",
     "main": "cdk/bin/index.ts",
     "repository": {
         "type": "git",

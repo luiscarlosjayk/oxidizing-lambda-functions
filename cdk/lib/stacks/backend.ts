@@ -2,6 +2,7 @@ import * as cdk from "aws-cdk-lib";
 import { Construct } from "constructs";
 import {
     NodeLambdaConstruct,
+    NodeLlrtLambdaConstruct,
     DynamoDBTableConstruct,
     S3BucketConstruct,
 } from "../constructs";
@@ -40,8 +41,21 @@ export class BackendStack extends cdk.Stack {
         /**
          * DynamoDB table
          */
-        const dynamoDBTable = new DynamoDBTableConstruct(this, "DynamoDBTable", {
-            tableName: "hospital-averages-table",
+        const nodeLlrtDynamoDBTable = new DynamoDBTableConstruct(this, "NodeLLRTDynamoDBTable", {
+            tableName: "node-llrt-hospital-averages-table",
+            environment,
+            partitionKey: {
+                name: "PK",
+                type: dynamodb.AttributeType.STRING,
+            },
+            sortKey: {
+                name: "SK",
+                type: dynamodb.AttributeType.STRING,
+            },
+        });
+        
+        const node20DynamoDBTable = new DynamoDBTableConstruct(this, "Node20DynamoDBTable", {
+            tableName: "node-20-hospital-averages-table",
             environment,
             partitionKey: {
                 name: "PK",
@@ -56,6 +70,8 @@ export class BackendStack extends cdk.Stack {
         /**
          * Lambda functions
          */
+
+        // Nodejs 20.X
         new NodeLambdaConstruct(this, "Node20ProcessFileLambda", {
             name: "node-20-process-file",
             entry: "node-20-process-file",
@@ -68,8 +84,26 @@ export class BackendStack extends cdk.Stack {
                 "S3_BUCKET": assetsSourceBucket,
             },
             dynamoDB: {
-                "DB_TABLE": dynamoDBTable,
+                "DB_TABLE": node20DynamoDBTable,
             },
         });
+        
+        // Node LLRT
+        new NodeLlrtLambdaConstruct(this, "NodeLLRTProcessFileLambda", {
+            name: "node-llrt-process-file",
+            entry: "node-llrt-process-file",
+            environment,
+            environmentVariables: {
+                FILE_NAME: environment.fileName,
+            },
+            duration: cdk.Duration.minutes(1),
+            s3Buckets: {
+                "S3_BUCKET": assetsSourceBucket,
+            },
+            dynamoDB: {
+                "DB_TABLE": nodeLlrtDynamoDBTable,
+            },
+        });
+        
     }
 }

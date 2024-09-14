@@ -1,3 +1,5 @@
+import { Construct } from "constructs";
+import * as llrtLambda from "cdk-lambda-llrt";
 import type { DynamoDBTableConstruct, S3BucketConstruct } from "../constructs";
 import type { Environment } from "../types";
 import { LambdaConstruct } from "./lambda-construct";
@@ -8,9 +10,8 @@ import * as nodePath from "node:path";
 import * as logs from "aws-cdk-lib/aws-logs";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as utils from "../utils";
-import { Construct } from "constructs";
 
-export type NodeLambdaConstructProps = {
+export type NodeLlrtLambdaConstructProps = {
     name: string;
     entry: string;
     duration?: cdk.Duration;
@@ -27,8 +28,8 @@ export type NodeLambdaConstructProps = {
     s3Buckets?: Record<string, S3BucketConstruct>;
 };
 
-export class NodeLambdaConstruct extends LambdaConstruct {
-    constructor(scope: Construct, id: string, props: NodeLambdaConstructProps) {
+export class NodeLlrtLambdaConstruct extends LambdaConstruct {
+    constructor(scope: Construct, id: string, props: NodeLlrtLambdaConstructProps) {
         super(scope, id);
 
         const environment = this.environment = props.environment;
@@ -95,24 +96,28 @@ export class NodeLambdaConstruct extends LambdaConstruct {
         /**
          * Lamba Function
          */
-        this.lambda = new nodejsLambda.NodejsFunction(this, `Function${id}`, {
+        this.lambda = new llrtLambda.LlrtFunction(this, `Function${id}`, {
             functionName,
             entry,
             timeout: props.duration,
             environment: environmentVariables,
             memorySize: props.memorySize,
             reservedConcurrentExecutions: props.concurrency,
-            architecture: lambda.Architecture.ARM_64,
+            // architecture: lambda.Architecture.ARM_64,
             layers: props.layers,
             bundling: {
                 externalModules: [
                     "@aws-sdk/*",
                 ],
+                esbuildArgs: {
+                    "--platform": "browser",
+                },
                 ...props.bundling,
+                // forceDockerBundling: true, // Reference: https://constructs.dev/packages/cdk-lambda-llrt/v/0.0.11?lang=typescript
             },
             logGroup,
             role,
-            runtime: lambda.Runtime.NODEJS_20_X,
+            // runtime: lambda.Runtime.NODEJS_20_X,
         });
 
         // Grant read and write permissions to DynamoDB table

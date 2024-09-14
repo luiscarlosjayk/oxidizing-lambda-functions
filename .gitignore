@@ -36,6 +36,7 @@ cdk/**/*.d.ts
 cdk/.cdk.staging
 cdk/cdk.out/
 cdk/cdk.context.json
+cdk/.tmp/
 
 # Node
 node_modules/
