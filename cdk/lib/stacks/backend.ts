@@ -3,6 +3,7 @@ import { Construct } from "constructs";
 import {
     NodeLambdaConstruct,
     NodeLlrtLambdaConstruct,
+    RustLambdaConstruct,
     DynamoDBTableConstruct,
     S3BucketConstruct,
 } from "../constructs";
@@ -67,6 +68,19 @@ export class BackendStack extends cdk.Stack {
             },
         });
 
+        const rustDynamoDBTable = new DynamoDBTableConstruct(this, "RustDynamoDBTable", {
+            tableName: "rust-hospital-averages-table",
+            environment,
+            partitionKey: {
+                name: "PK",
+                type: dynamodb.AttributeType.STRING,
+            },
+            sortKey: {
+                name: "SK",
+                type: dynamodb.AttributeType.STRING,
+            },
+        });
+
         /**
          * Lambda functions
          */
@@ -102,6 +116,23 @@ export class BackendStack extends cdk.Stack {
             },
             dynamoDB: {
                 "DB_TABLE": nodeLlrtDynamoDBTable,
+            },
+        });
+
+        // Rust
+        new RustLambdaConstruct(this, "RustProcessFileLambda", {
+            name: "rust-process-file",
+            entry: "rust-process-file",
+            environment,
+            environmentVariables: {
+                FILE_NAME: environment.fileName,
+            },
+            duration: cdk.Duration.minutes(1),
+            s3Buckets: {
+                "S3_BUCKET": assetsSourceBucket,
+            },
+            dynamoDB: {
+                "DB_TABLE": rustDynamoDBTable,
             },
         });
         

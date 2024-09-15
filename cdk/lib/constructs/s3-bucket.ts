@@ -4,7 +4,7 @@ import { Environment } from "../types";
 import { getStackPrefix } from "../utils";
 import { RemovalPolicy } from "aws-cdk-lib";
 
-export type S3BucketConstructProps = {
+export interface S3BucketConstructProps {
     environment: Environment;
     name: string;
 }

@@ -1,6 +1,6 @@
-import { CdkCustomResourceEvent, CdkCustomResourceResponse, Context } from "aws-lambda";
+import { CdkCustomResourceEvent, Context } from "aws-lambda";
 import { PutObjectAclCommandOutput, PutObjectCommand, PutObjectCommandInput, S3Client } from "@aws-sdk/client-s3";
-import fs, { FileHandle } from "node:fs/promises";
+import fs from "node:fs/promises";
 import { PathLike } from "node:fs";
 
 enum Status {
