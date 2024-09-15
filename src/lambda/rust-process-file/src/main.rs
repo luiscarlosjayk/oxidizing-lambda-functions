@@ -1,5 +1,3 @@
-#![allow(unused_variables, unused_imports)] // Remove after testing
-
 use aws_config::meta::region::RegionProviderChain;
 use aws_sdk_dynamodb::{
     self as dynamodb,
@@ -10,10 +8,10 @@ use lambda_http::{
     http::{header, StatusCode},
     run, service_fn,
     tower::ServiceBuilder,
-    tracing, Body, Context, Error, Request, RequestExt, Response,
+    tracing, Body, Error, Request, RequestExt, Response,
 };
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, hash::Hash};
+use std::collections::HashMap;
 
 #[derive(Deserialize, Serialize, Debug)]
 struct AverageRecord {
