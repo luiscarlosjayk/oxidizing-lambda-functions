@@ -4,6 +4,7 @@ import {
     NodeLambdaConstruct,
     NodeLlrtLambdaConstruct,
     RustLambdaConstruct,
+    PythonLambdaConstruct,
     DynamoDBTableConstruct,
     S3BucketConstruct,
 } from "../constructs";
@@ -81,6 +82,19 @@ export class BackendStack extends cdk.Stack {
             },
         });
 
+        const pythonDynamoDBTable = new DynamoDBTableConstruct(this, "PythonDynamoDBTable", {
+            tableName: "python-hospital-averages-table",
+            environment,
+            partitionKey: {
+                name: "PK",
+                type: dynamodb.AttributeType.STRING,
+            },
+            sortKey: {
+                name: "SK",
+                type: dynamodb.AttributeType.STRING,
+            },
+        });
+
         /**
          * Lambda functions
          */
@@ -133,6 +147,24 @@ export class BackendStack extends cdk.Stack {
             },
             dynamoDB: {
                 "DB_TABLE": rustDynamoDBTable,
+            },
+        });
+
+        // Python
+        new PythonLambdaConstruct(this, "PythonProcessFileLambda", {
+            name: "python-process-file",
+            entry: "python-process-file",
+            index: "python_process_file/index.py",
+            environment,
+            environmentVariables: {
+                FILE_NAME: environment.fileName,
+            },
+            duration: cdk.Duration.minutes(1),
+            s3Buckets: {
+                "S3_BUCKET": assetsSourceBucket,
+            },
+            dynamoDB: {
+                "DB_TABLE": pythonDynamoDBTable,
             },
         });
         

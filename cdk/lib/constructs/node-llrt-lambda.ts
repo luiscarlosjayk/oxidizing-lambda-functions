@@ -1,10 +1,7 @@
 import { Construct } from "constructs";
 import * as llrtLambda from "cdk-lambda-llrt";
 import { LambdaConstruct, LambdaConstructProps } from "./lambda-construct";
-import * as cdk from "aws-cdk-lib";
 import * as nodePath from "node:path";
-import * as logs from "aws-cdk-lib/aws-logs";
-import * as iam from "aws-cdk-lib/aws-iam";
 import * as utils from "../utils";
 
 export interface NodeLlrtLambdaConstructProps extends LambdaConstructProps {};

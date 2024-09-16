@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "python-process-file"
+version = "0.1.0"
+description = ""
+authors = ["Luis Carlos Osorio Jayk <https://github.com/luiscarlosjayk>"]
+readme = "README.md"
+repository = "https://github.com/luiscarlosjayk/oxidizing-lambda-functions"
+packages = [{ include = "python_process_file" }]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+pandas = "^2.2.2"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
