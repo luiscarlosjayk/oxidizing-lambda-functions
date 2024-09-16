@@ -95,6 +95,19 @@ export class BackendStack extends cdk.Stack {
             },
         });
 
+        const pythonPolarsDynamoDBTable = new DynamoDBTableConstruct(this, "PythonPolarsDynamoDBTable", {
+            tableName: "python-polars-hospital-averages-table",
+            environment,
+            partitionKey: {
+                name: "PK",
+                type: dynamodb.AttributeType.STRING,
+            },
+            sortKey: {
+                name: "SK",
+                type: dynamodb.AttributeType.STRING,
+            },
+        });
+
         /**
          * Lambda functions
          */
@@ -150,7 +163,7 @@ export class BackendStack extends cdk.Stack {
             },
         });
 
-        // Python
+        // Python with Pandas
         new PythonLambdaConstruct(this, "PythonProcessFileLambda", {
             name: "python-process-file",
             entry: "python-process-file",
@@ -165,6 +178,24 @@ export class BackendStack extends cdk.Stack {
             },
             dynamoDB: {
                 "DB_TABLE": pythonDynamoDBTable,
+            },
+        });
+
+        // Python with Polars
+        new PythonLambdaConstruct(this, "PythonPolarsProcessFileLambda", {
+            name: "python-polars-process-file",
+            entry: "python-polars-process-file",
+            index: "python_polars_process_file/index.py",
+            environment,
+            environmentVariables: {
+                FILE_NAME: environment.fileName,
+            },
+            duration: cdk.Duration.minutes(1),
+            s3Buckets: {
+                "S3_BUCKET": assetsSourceBucket,
+            },
+            dynamoDB: {
+                "DB_TABLE": pythonPolarsDynamoDBTable,
             },
         });
         

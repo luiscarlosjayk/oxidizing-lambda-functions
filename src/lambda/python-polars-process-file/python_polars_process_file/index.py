@@ -1,7 +1,7 @@
 import os
 import logging
 import boto3
-import pandas
+import polars
 from collections import Counter
 from io import StringIO
 
@@ -36,28 +36,36 @@ def process_csv_data(bucket, key):
     response = s3_client.get_object(Bucket=bucket, Key=key)
     csv_data = response['Body'].read().decode('utf-8')
 
-    # Read the CSV data into a pandas DataFrame
-    df = pandas.read_csv(StringIO(csv_data))
+    # Read the CSV data into a Polars DataFrame
+    df = polars.read_csv(StringIO(csv_data))
 
-    # Group data by Hospital and Diagnosis, and calculate the average recovery time
-    grouped = df.groupby(['Hospital', 'Diagnosis'])
+    # Group by Hospital and Diagnosis, calculating the average Recovery Time
+    grouped = df.group_by(['Hospital', 'Diagnosis']).agg([
+        polars.col('Recovery Time').mean().alias('AverageRecoveryTime'),
+        polars.col('Treatment')
+    ])
 
     # Prepare list to hold average records
     averages = []
 
-    for (hospital, diagnosis), group in grouped:
-        # Calculate the average recovery time
-        avg_recovery_time = group['Recovery Time'].mean()
+    # Iterate over each group to calculate the most used treatment
+    for group in grouped.iter_rows(named=True):
+        hospital = group['Hospital']
+        diagnosis = group['Diagnosis']
+        avg_recovery_time = group['AverageRecoveryTime']
 
-        # Find the most common treatment
-        most_common_treatment = Counter(group['Treatment']).most_common(1)[0][0]
+        # Extract the treatments related to this group
+        treatments = df.filter((df['Hospital'] == hospital) & (df['Diagnosis'] == diagnosis))['Treatment']
+
+        # Find the most used treatment
+        most_used_treatment = Counter(treatments).most_common(1)[0][0]
 
         # Create the average record
         averages.append({
             'Hospital': hospital,
             'Diagnosis': diagnosis,
             'AverageRecoveryTime': avg_recovery_time,
-            'MostUsedTreatment': most_common_treatment
+            'MostUsedTreatment': most_used_treatment
         })
 
     return averages
