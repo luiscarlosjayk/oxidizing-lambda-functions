@@ -1,0 +1,29 @@
+{
+    "name": "node-llrt-process-file",
+    "version": "0.1.0",
+    "description": "Node LLRT lambda to process file in source bucket",
+    "main": "cdk/bin/index.ts",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/luiscarlosjayk/oxidizing-lambda-functions"
+    },
+    "author": {
+        "name": "Luis Carlos Osorio Jayk"
+    },
+    "license": "ISC",
+    "homepage": "",
+    "scripts": {},
+    "devDependencies": {
+        "@types/aws-lambda": "^8.10.136",
+        "@types/node": "^22.5.5",
+        "nodemon": "^3.1.0",
+        "ts-node": "^10.9.2",
+        "typescript": "^5.4.2"
+    },
+    "dependencies": {
+        "@aws-sdk/client-dynamodb": "^3.651.1",
+        "@aws-sdk/client-s3": "^3.651.1",
+        "aws-lambda": "^1.0.7",
+        "udsv": "^0.5.3"
+    }
+}
