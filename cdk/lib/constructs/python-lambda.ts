@@ -25,13 +25,14 @@ export class PythonLambdaConstruct extends LambdaConstruct {
             index: props.index,
             handler: props.handler,
             runtime: lambda.Runtime.PYTHON_3_12,
-            timeout: props.duration,
+            timeout: props.duration ?? this.environment.duration,
+            memorySize: props.memorySize ?? this.environment.memorySize,
             environment: this.environmentVariables,
-            memorySize: props.memorySize,
             reservedConcurrentExecutions: props.concurrency,
             layers: props.layers,
             logGroup: this.logGroup,
             role: this.role,
+            architecture: lambda.Architecture.ARM_64,
         });
 
         // Attachs permissions to resources like dynamoDB, s3Bucket, else

@@ -1,9 +1,7 @@
 import os
 import logging
 import boto3
-import polars
-from collections import Counter
-from io import StringIO
+import polars as pl
 
 # Initialize logger
 logger = logging.getLogger()
@@ -15,76 +13,79 @@ S3_BUCKET = os.environ.get('S3_BUCKET')
 FILE_NAME = os.environ.get('FILE_NAME')
 
 # Initialize AWS SDK clients
-s3_client = boto3.client('s3')
 dynamodb = boto3.resource('dynamodb')
 
 def handler(_, context):
     # Process the CSV data from S3 and calculate averages
-    averages = process_csv_data(S3_BUCKET, FILE_NAME)
-
-    # Store the results in DynamoDB
-    store_results_in_dynamodb(averages, context.aws_request_id)
+    process_csv_data(S3_BUCKET, FILE_NAME, context.aws_request_id)
 
     return {
         'statusCode': 200,
         'body': 'Data processed and stored successfully!'
     }
 
-
-def process_csv_data(bucket, key):
-    # Get the CSV file from S3
-    response = s3_client.get_object(Bucket=bucket, Key=key)
-    csv_data = response['Body'].read().decode('utf-8')
-
-    # Read the CSV data into a Polars DataFrame
-    df = polars.read_csv(StringIO(csv_data))
-
-    # Group by Hospital and Diagnosis, calculating the average Recovery Time
-    grouped = df.group_by(['Hospital', 'Diagnosis']).agg([
-        polars.col('Recovery Time').mean().alias('AverageRecoveryTime'),
-        polars.col('Treatment')
-    ])
-
-    # Prepare list to hold average records
-    averages = []
-
-    # Iterate over each group to calculate the most used treatment
-    for group in grouped.iter_rows(named=True):
-        hospital = group['Hospital']
-        diagnosis = group['Diagnosis']
-        avg_recovery_time = group['AverageRecoveryTime']
-
-        # Extract the treatments related to this group
-        treatments = df.filter((df['Hospital'] == hospital) & (df['Diagnosis'] == diagnosis))['Treatment']
-
-        # Find the most used treatment
-        most_used_treatment = Counter(treatments).most_common(1)[0][0]
-
-        # Create the average record
-        averages.append({
-            'Hospital': hospital,
-            'Diagnosis': diagnosis,
-            'AverageRecoveryTime': avg_recovery_time,
-            'MostUsedTreatment': most_used_treatment
-        })
-
-    return averages
-
-
-def store_results_in_dynamodb(averages, request_id):
+def process_csv_data(bucket, key, request_id):
     # Reference the DynamoDB table
     table = dynamodb.Table(DB_TABLE)
 
-    # Batch write the results to DynamoDB
-    with table.batch_writer() as batch:
-        for avg in averages:
-            sort_key = "#diagnosis#{}#hospital#{}".format(avg['Diagnosis'], avg['Hospital'])
+    # Construct the S3 path
+    s3_path = f"s3://{bucket}/{key}"
 
+    # Read the CSV file lazily with Polars
+    lazy_df = pl.read_csv_batched(s3_path)
+
+    # Define the chunk size
+    chunk_size = 10_000
+
+    # Iterate over the lazy DataFrame in chunks
+    try:
+        # Continuously fetch data in chunks until the DataFrame is exhausted
+        chunk_count = 0
+        while True:
+            # Fetch a chunk of data lazily
+            chunk = lazy_df.fetch(chunk_size)
+            
+            # Break the loop if no more data is available
+            if chunk.is_empty():
+                break
+            
+            # Process and store the chunk
+            process_and_store_chunk(chunk, table, request_id)
+
+            chunk_count += 1
+
+        logger.info(f"CSV data processing completed for request ID: {request_id}, processed {chunk_count} chunks.")
+
+    except Exception as e:
+        logger.error(f"Error processing CSV data: {e}")
+        raise
+
+def process_and_store_chunk(chunk, table, request_id):
+    # Perform grouping and aggregation on the chunk
+    chunk_result = (
+        chunk.lazy()
+        .group_by(['Hospital', 'Diagnosis'])
+        .agg([
+            pl.col('Recovery Time').mean().alias('AverageRecoveryTime'),
+            pl.col('Treatment').mode().alias('MostUsedTreatment')
+        ])
+        .collect()
+    )
+
+    # Convert the result to a list of dictionaries for easy iteration
+    records = chunk_result.to_dicts()
+
+    # Store results in DynamoDB
+    with table.batch_writer() as batch:
+        for record in records:
+            sort_key = f"#diagnosis#{record['Diagnosis']}#hospital#{record['Hospital']}"
             batch.put_item(Item={
                 'PK': request_id,
                 'SK': sort_key,
-                'Hospital': avg['Hospital'],
-                'Diagnosis': avg['Diagnosis'],
-                'AverageRecoveryTime': str(avg['AverageRecoveryTime']),
-                'MostUsedTreatment': avg['MostUsedTreatment']
+                'Hospital': record['Hospital'],
+                'Diagnosis': record['Diagnosis'],
+                'AverageRecoveryTime': str(record['AverageRecoveryTime']),
+                'MostUsedTreatment': record['MostUsedTreatment']
             })
+
+    logger.info(f"Processed and stored {len(records)} records from a chunk")

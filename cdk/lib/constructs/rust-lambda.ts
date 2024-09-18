@@ -22,9 +22,9 @@ export class RustLambdaConstruct extends LambdaConstruct {
         this.lambda = new RustFunction(this, `RustFunction${id}`, {
             functionName: this.functionName,
             manifestPath,
-            timeout: props.duration,
+            timeout: props.duration ?? this.environment.duration,
+            memorySize: props.memorySize ?? this.environment.memorySize,
             environment: this.environmentVariables,
-            memorySize: props.memorySize,
             reservedConcurrentExecutions: props.concurrency,
             layers: props.layers,
             logGroup: this.logGroup,

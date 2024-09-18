@@ -24,7 +24,6 @@
 # Tests
 unit-tests.xml
 
-
 # OS
 .DS_Store
 
@@ -41,3 +40,9 @@ cdk/.tmp/
 # Node
 node_modules/
 
+# Python
+__pycache__
+src/utils/dataset_generator/*.csv
+
+# Large dataset
+src/assets/very_large_medical_records.csv

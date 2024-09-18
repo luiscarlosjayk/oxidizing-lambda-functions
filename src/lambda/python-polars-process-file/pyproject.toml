@@ -8,6 +8,8 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = "^3.12"
 polars = "^1.7.1"
+s3fs = "^2024.9.0"
+fsspec = "^2024.9.0"
 
 
 [build-system]

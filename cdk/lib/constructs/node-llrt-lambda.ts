@@ -18,9 +18,9 @@ export class NodeLlrtLambdaConstruct extends LambdaConstruct {
         this.lambda = new llrtLambda.LlrtFunction(this, `NodeLLRTFunction${id}`, {
             functionName: this.functionName,
             entry,
-            timeout: props.duration,
+            timeout: props.duration ?? this.environment.duration,
+            memorySize: props.memorySize ?? this.environment.memorySize,
             environment: this.environmentVariables,
-            memorySize: props.memorySize,
             reservedConcurrentExecutions: props.concurrency,
             layers: props.layers,
             bundling: {
