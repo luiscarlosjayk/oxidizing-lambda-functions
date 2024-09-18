@@ -56,18 +56,18 @@ export class BackendStack extends cdk.Stack {
         //     },
         // });
         
-        // const node20DynamoDBTable = new DynamoDBTableConstruct(this, "Node20DynamoDBTable", {
-        //     tableName: "node-20-hospital-averages-table",
-        //     environment,
-        //     partitionKey: {
-        //         name: "PK",
-        //         type: dynamodb.AttributeType.STRING,
-        //     },
-        //     sortKey: {
-        //         name: "SK",
-        //         type: dynamodb.AttributeType.STRING,
-        //     },
-        // });
+        const node20DynamoDBTable = new DynamoDBTableConstruct(this, "Node20DynamoDBTable", {
+            tableName: "node-20-hospital-averages-table",
+            environment,
+            partitionKey: {
+                name: "PK",
+                type: dynamodb.AttributeType.STRING,
+            },
+            sortKey: {
+                name: "SK",
+                type: dynamodb.AttributeType.STRING,
+            },
+        });
 
         // const rustDynamoDBTable = new DynamoDBTableConstruct(this, "RustDynamoDBTable", {
         //     tableName: "rust-hospital-averages-table",
@@ -113,20 +113,20 @@ export class BackendStack extends cdk.Stack {
          */
 
         // Nodejs 20.X
-        // new NodeLambdaConstruct(this, "Node20ProcessFileLambda", {
-        //     name: "node-20-process-file",
-        //     entry: "node-20-process-file",
-        //     environment,
-        //     environmentVariables: {
-        //         FILE_NAME: environment.fileName,
-        //     },
-        //     s3Buckets: {
-        //         "S3_BUCKET": assetsSourceBucket,
-        //     },
-        //     dynamoDB: {
-        //         "DB_TABLE": node20DynamoDBTable,
-        //     },
-        // });
+        new NodeLambdaConstruct(this, "Node20ProcessFileLambda", {
+            name: "node-20-process-file",
+            entry: "node-20-process-file",
+            environment,
+            environmentVariables: {
+                FILE_NAME: environment.fileName,
+            },
+            s3Buckets: {
+                "S3_BUCKET": assetsSourceBucket,
+            },
+            dynamoDB: {
+                "DB_TABLE": node20DynamoDBTable,
+            },
+        });
         
         // Node LLRT
         // new NodeLlrtLambdaConstruct(this, "NodeLLRTProcessFileLambda", {

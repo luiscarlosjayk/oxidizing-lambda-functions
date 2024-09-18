@@ -60,7 +60,7 @@ def process_csv_data(bucket, key, request_id):
     }).reset_index()
 
     # Calculate the average recovery time
-    average_recovery['average_recovery_time'] = average_recovery['sum'] / average_recovery['count']
+    average_recovery['Average Recovery Time'] = average_recovery['sum'] / average_recovery['count']
 
     # Step 5: Find the most frequent treatment across all chunks per (Hospital, Diagnosis)
     # Count occurrences of each treatment combination across chunks
@@ -70,20 +70,20 @@ def process_csv_data(bucket, key, request_id):
     most_frequent_overall = treatment_counts.sort_values(['Hospital', 'Diagnosis', 'Count'], ascending=[True, True, False]).drop_duplicates(subset=['Hospital', 'Diagnosis'])
 
     # Step 6: Merge the average recovery time with the most frequent treatment
-    final_results = pd.merge(average_recovery[['Hospital', 'Diagnosis', 'average_recovery_time']], 
+    final_results = pd.merge(average_recovery[['Hospital', 'Diagnosis', 'Average Recovery Time']], 
                             most_frequent_overall[['Hospital', 'Diagnosis', 'Treatment']], 
                             on=['Hospital', 'Diagnosis'], 
                             how='inner')
 
     # Rename columns for clarity
-    final_results.rename(columns={'Treatment': 'most_frequent_treatment'}, inplace=True)
+    # final_results.rename(columns={'Treatment': 'most_frequent_treatment'}, inplace=True)
     
     # Step 7: Store results in DynamoDB
     for _, row in final_results.iterrows():
         hospital = row['Hospital']
         diagnosis = row['Diagnosis']
-        avg_recovery_time = row['average_recovery_time']
-        most_frequent_treatment = row['most_frequent_treatment']
+        avg_recovery_time = row['Average Recovery Time']
+        most_frequent_treatment = row['Treatment']
         
         # Construct the sort key as per the given format
         sort_key = f"#diagnosis#{diagnosis}#hospital#{hospital}"
