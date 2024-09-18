@@ -1,248 +1,141 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from "aws-lambda";
-import {
-    S3Client,
-    GetObjectCommand,
-    GetObjectCommandInput,
-    GetObjectCommandOutput,
-} from "@aws-sdk/client-s3";
-import { DynamoDBClient, BatchWriteItemCommand, BatchWriteItemCommandInput } from "@aws-sdk/client-dynamodb";
-import { Readable } from "stream";
-import * as udsv from "udsv";
+import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocumentClient, BatchWriteCommand } from "@aws-sdk/lib-dynamodb";
+import { inferSchema, initParser } from 'udsv';
+import { Readable } from 'stream';
+import { Context, APIGatewayProxyResult } from 'aws-lambda';
 
-type Row = {
-    Hospital: string;
-    Diagnosis: string;
-    Treatment: string;
-    "Recovery Time": string;
-};
-
-type GroupedData = Record<
-    string,
-    Record<
-        string,
-        {
-            totalRecoveryTime: number;
-            count: number;
-            treatments: Record<
-                string,
-                number
-            >;
-        }
-    >
->;
-
-type Average = {
-    Hospital: string;
-    Diagnosis: string;
-    AverageRecoveryTime: number;
-    MostUsedTreatment: string;
-};
-
-const S3_BUCKET = process.env.S3_BUCKET;
-const FILE_NAME = process.env.FILE_NAME;
-const DB_TABLE = process.env.DB_TABLE;
-
+// Initialize AWS SDK clients
 const s3Client = new S3Client();
-const dynamoDBClient = new DynamoDBClient();
+const ddbClient = new DynamoDBClient();
+const ddbDocClient = DynamoDBDocumentClient.from(ddbClient);
 
-export async function handler(event: APIGatewayProxyEvent, context: Context): Promise<APIGatewayProxyResult> {
-    console.log(`Node20 process file lambda invoked: ${context.awsRequestId}`);
-    
+// Environment variables
+const DB_TABLE = process.env.DB_TABLE!;
+const S3_BUCKET = process.env.S3_BUCKET!;
+const FILE_NAME = process.env.FILE_NAME!;
+
+interface CSVRecord {
+    Hospital: string;
+    Diagnosis: string;
+    'Recovery Time': string;
+    Treatment: string;
+}
+
+interface AggregatedData {
+    Hospital: string;
+    Diagnosis: string;
+    totalRecoveryTime: number;
+    count: number;
+    treatments: Map<string, number>;
+}
+
+interface ProcessedResult {
+    Hospital: string;
+    Diagnosis: string;
+    AverageRecoveryTime: string;
+    MostUsedTreatment: string;
+}
+
+export const handler = async (event: any, context: Context): Promise<APIGatewayProxyResult> => {
     try {
-        if (!isNonEmptyString(S3_BUCKET)) {
-            throw TypeError("S3_BUCKET environment variable is invalid or missing.");
-        }
-
-        if (!isNonEmptyString(FILE_NAME)) {
-            throw TypeError("FILE_NAME environment variable is invalid or missing.");
-        }
-
-        if (!isNonEmptyString(DB_TABLE)) {
-            throw TypeError("DB_TABLE environment variable is invalid or missing.");
-        }
-
-        const requestId = context.awsRequestId;
-        const sourceBucket = S3_BUCKET;
-        const sourceFileName = FILE_NAME;
-        const dynamoDBTable = DB_TABLE;
-        const getObjectResponse = await getObjectFromBucket(sourceFileName, sourceBucket);
-        const data = getObjectResponse.Body;
-
-        if (!isReadable(data)) {
-            throw TypeError("Expected Body to be a Readable stream");
-        }
-        
-        const averages = await processCSVData(data);
-
-        console.log(JSON.stringify({
-            msg: "Averages",
-            averages,
-        }, null, 2));
-
-        await writeDataToDB(averages, requestId, dynamoDBTable);
-        
+        await processCSVData(S3_BUCKET, FILE_NAME, context.awsRequestId);
         return {
             statusCode: 200,
-            body: JSON.stringify({
-                message: "Ok",
-            }),
+            body: 'Data processed and stored successfully!'
         };
-    } catch(err) {
-        console.error(err);
+    } catch (error) {
+        console.error('Error:', error);
         return {
             statusCode: 500,
-            body: JSON.stringify({
-                message: "Internal error",
-            }),
+            body: 'Error processing data'
         };
     }
-}
+};
 
-async function processCSVData(data: Readable): Promise<Average[]> {
-    const stream = Readable.from(data);
-    let parser: null | udsv.Parser = null;
-    let rows: Row[] | undefined = undefined;
-    
-    return new Promise((resolve, reject) => {
-        stream
-            .on("data", (chunk: Buffer) => {
-                const strChunk = chunk.toString();
-                // On first chunk, infer schema and init parser
-                parser ??= udsv.initParser(udsv.inferSchema(strChunk));
-                // Incremental parse to string arrays
-                parser.chunk<Row>(strChunk, parser.typedObjs);
-            })
-            .on('end', () => {
-                rows = parser?.end<Row>();
+async function processCSVData(bucket: string, key: string, requestId: string): Promise<void> {
+    // Get the CSV file from S3
+    const { Body } = await s3Client.send(new GetObjectCommand({
+        Bucket: bucket,
+        Key: key
+    }));
 
-                if (!rows) {
-                    return reject(new TypeError('Expected rows to not be undefined'));
-                }
-                
-                const groupedData: GroupedData = {};
+    if (!Body) {
+        throw new Error('Failed to retrieve file from S3');
+    }
 
-                rows.forEach((row) => {
-                    const {
-                        Hospital: hospital,
-                        Diagnosis: diagnosis,
-                        Treatment: treatment,
-                    } = row;
-                    const recoveryTime = parseFloat(row["Recovery Time"]);
-                    
-                    if (!groupedData[hospital]) {
-                        groupedData[hospital] = {};
-                    }
-                    
-                    if (!groupedData[hospital][diagnosis]) {
-                        groupedData[hospital][diagnosis] = {
-                            totalRecoveryTime: 0,
-                            count: 0,
-                            treatments: {},
-                        };
-                    }
-                    
-                    if (!groupedData[hospital][diagnosis]["treatments"][treatment]) {
-                        groupedData[hospital][diagnosis]["treatments"][treatment] = 0;
-                    }
-                    
-                    groupedData[hospital][diagnosis].totalRecoveryTime += recoveryTime;
-                    groupedData[hospital][diagnosis].count += 1;
-                    groupedData[hospital][diagnosis]["treatments"][treatment] += 1;
-                });
-                
-                const averages: Average[] = [];
-                
-                for (const hospital in groupedData) {
-                    for (const diagnosis in groupedData[hospital]) {
-                        const entry = groupedData[hospital][diagnosis];
-                        const averageTime = parseFloat((entry.totalRecoveryTime / entry.count).toFixed(2));
-                        const mostUsedTreatment = Object.entries(entry.treatments).reduce((prevTreatment, currentTreatment) => {
-                            if (currentTreatment[1] > prevTreatment[1]) {
-                                return currentTreatment;
-                            }
-                            
-                            return prevTreatment;
-                        });
-                        
-                        const average: Average = {
-                            Hospital: hospital,
-                            Diagnosis: diagnosis,
-                            AverageRecoveryTime: averageTime,
-                            MostUsedTreatment: mostUsedTreatment[0],
-                        };
-                        averages.push(average);
-                    }
-                }
+    const bodyContents = await streamToString(Body as Readable);
+    const schema = inferSchema(bodyContents);
+    const parser = initParser(schema);
 
-                return resolve(averages);
-            })
-            .on("error", (err) => {
-                console.error(err);
-                return reject(err);
+    const dataAggregator = new Map<string, AggregatedData>();
+
+    // Process the CSV data
+    const records = parser(bodyContents);
+    for (const record of records) {
+        const typedRecord = record as CSVRecord;
+        const groupKey = `${typedRecord.Hospital}|${typedRecord.Diagnosis}`;
+        if (!dataAggregator.has(groupKey)) {
+            dataAggregator.set(groupKey, {
+                Hospital: typedRecord.Hospital,
+                Diagnosis: typedRecord.Diagnosis,
+                totalRecoveryTime: 0,
+                count: 0,
+                treatments: new Map()
             });
-    });
-}
-
-async function getObjectFromBucket(filePath: string, bucket: string): Promise<GetObjectCommandOutput> {
-    try {
-        const input: GetObjectCommandInput = {
-            Bucket: bucket,
-            Key: filePath,
-        };
-        const command = new GetObjectCommand(input);
-        
-        return s3Client.send(command);
-    } catch(err: unknown) {
-        console.error(err);
-        throw "getObjectFromBucket: Expected to get object from s3 bucket"
-    }
-}
-
-async function writeDataToDB(averages: Average[], requestId: string, dynamoDBTable: string) {
-    try {
-        const putRequests = averages.map((average) => {
-            const partitionKey = requestId;
-            const sortKey = `#diagnosis#${average.Diagnosis}#hospital#${average.Hospital}`;
-            
-            const putRequest = {
-                PutRequest: {
-                    Item: {
-                        PK: { S: partitionKey },
-                        SK: { S: sortKey },
-                        Hospital: { S: average.Hospital },
-                        Diagnosis: { S: average.Diagnosis },
-                        MostUsedTreatment: { S: average.MostUsedTreatment },
-                        AverageRecoveryTime: { N: average.AverageRecoveryTime.toString() },
-                    },
-                }
-            };
-
-            return putRequest;
-        });
-
-        // Perform batch writes in chunks of 25 items due to DynamoDB limits
-        const chunkSize = 25;
-        for(let i = 0; i < putRequests.length; i += chunkSize) {
-            const chunk = putRequests.slice(i, i + chunkSize);
-            const input: BatchWriteItemCommandInput = {
-                RequestItems: {
-                    [dynamoDBTable]: chunk,
-                },
-            };
-            const command = new BatchWriteItemCommand(input);
-
-            await dynamoDBClient.send(command);
         }
-    } catch(err: unknown) {
-        console.error(err);
-        throw "writeDataToDB: Expected to have written to dynamoDB table";
+
+        const group = dataAggregator.get(groupKey)!;
+        group.totalRecoveryTime += parseFloat(typedRecord['Recovery Time']);
+        group.count += 1;
+        group.treatments.set(typedRecord.Treatment, (group.treatments.get(typedRecord.Treatment) || 0) + 1);
+    }
+
+    // Calculate final averages and most common treatments
+    const results: ProcessedResult[] = Array.from(dataAggregator.values()).map(group => ({
+        Hospital: group.Hospital,
+        Diagnosis: group.Diagnosis,
+        AverageRecoveryTime: (group.totalRecoveryTime / group.count).toFixed(2),
+        MostUsedTreatment: Array.from(group.treatments.entries()).reduce((a, b) => a[1] > b[1] ? a : b)[0]
+    }));
+
+    // Store results in DynamoDB
+    await storeResultsInDynamoDB(results, requestId);
+
+    console.log(`Processed ${results.length} unique Hospital-Diagnosis combinations`);
+}
+
+async function storeResultsInDynamoDB(results: ProcessedResult[], requestId: string): Promise<void> {
+    const batchSize = 25; // DynamoDB allows a maximum of 25 items per batch write
+    for (let i = 0; i < results.length; i += batchSize) {
+        const batch = results.slice(i, i + batchSize);
+        const params = {
+            RequestItems: {
+                [DB_TABLE]: batch.map(item => ({
+                    PutRequest: {
+                        Item: {
+                            PK: requestId,
+                            SK: `#diagnosis#${item.Diagnosis}#hospital#${item.Hospital}`,
+                            Hospital: item.Hospital,
+                            Diagnosis: item.Diagnosis,
+                            AverageRecoveryTime: item.AverageRecoveryTime,
+                            MostUsedTreatment: item.MostUsedTreatment
+                        }
+                    }
+                }))
+            }
+        };
+
+        await ddbDocClient.send(new BatchWriteCommand(params));
     }
 }
 
-function isNonEmptyString(input: unknown): input is string {
-    return typeof input === "string" && input.length > 0;
-}
-
-function isReadable(input: unknown): input is Readable {
-    return input instanceof Readable;
+// Helper function to convert a readable stream to a string
+async function streamToString(stream: Readable): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const chunks: Uint8Array[] = [];
+        stream.on('data', (chunk) => chunks.push(chunk));
+        stream.on('error', reject);
+        stream.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')));
+    });
 }

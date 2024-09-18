@@ -19,9 +19,9 @@ export class NodeLambdaConstruct extends LambdaConstruct {
         this.lambda = new nodejsLambda.NodejsFunction(this, `Node20Function${id}`, {
             functionName: this.functionName,
             entry,
-            timeout: props.duration,
+            timeout: props.duration ?? this.environment.duration,
+            memorySize: props.memorySize ?? this.environment.memorySize,
             environment: this.environmentVariables,
-            memorySize: props.memorySize,
             reservedConcurrentExecutions: props.concurrency,
             architecture: lambda.Architecture.ARM_64,
             layers: props.layers,

@@ -4,6 +4,7 @@ import {
     NodeLambdaConstruct,
     NodeLlrtLambdaConstruct,
     RustLambdaConstruct,
+    PythonLambdaConstruct,
     DynamoDBTableConstruct,
     S3BucketConstruct,
 } from "../constructs";
@@ -42,18 +43,18 @@ export class BackendStack extends cdk.Stack {
         /**
          * DynamoDB table
          */
-        const nodeLlrtDynamoDBTable = new DynamoDBTableConstruct(this, "NodeLLRTDynamoDBTable", {
-            tableName: "node-llrt-hospital-averages-table",
-            environment,
-            partitionKey: {
-                name: "PK",
-                type: dynamodb.AttributeType.STRING,
-            },
-            sortKey: {
-                name: "SK",
-                type: dynamodb.AttributeType.STRING,
-            },
-        });
+        // const nodeLlrtDynamoDBTable = new DynamoDBTableConstruct(this, "NodeLLRTDynamoDBTable", {
+        //     tableName: "node-llrt-hospital-averages-table",
+        //     environment,
+        //     partitionKey: {
+        //         name: "PK",
+        //         type: dynamodb.AttributeType.STRING,
+        //     },
+        //     sortKey: {
+        //         name: "SK",
+        //         type: dynamodb.AttributeType.STRING,
+        //     },
+        // });
         
         const node20DynamoDBTable = new DynamoDBTableConstruct(this, "Node20DynamoDBTable", {
             tableName: "node-20-hospital-averages-table",
@@ -68,8 +69,21 @@ export class BackendStack extends cdk.Stack {
             },
         });
 
-        const rustDynamoDBTable = new DynamoDBTableConstruct(this, "RustDynamoDBTable", {
-            tableName: "rust-hospital-averages-table",
+        // const rustDynamoDBTable = new DynamoDBTableConstruct(this, "RustDynamoDBTable", {
+        //     tableName: "rust-hospital-averages-table",
+        //     environment,
+        //     partitionKey: {
+        //         name: "PK",
+        //         type: dynamodb.AttributeType.STRING,
+        //     },
+        //     sortKey: {
+        //         name: "SK",
+        //         type: dynamodb.AttributeType.STRING,
+        //     },
+        // });
+
+        const pythonDynamoDBTable = new DynamoDBTableConstruct(this, "PythonDynamoDBTable", {
+            tableName: "python-hospital-averages-table",
             environment,
             partitionKey: {
                 name: "PK",
@@ -80,6 +94,19 @@ export class BackendStack extends cdk.Stack {
                 type: dynamodb.AttributeType.STRING,
             },
         });
+
+        // const pythonPolarsDynamoDBTable = new DynamoDBTableConstruct(this, "PythonPolarsDynamoDBTable", {
+        //     tableName: "python-polars-hospital-averages-table",
+        //     environment,
+        //     partitionKey: {
+        //         name: "PK",
+        //         type: dynamodb.AttributeType.STRING,
+        //     },
+        //     sortKey: {
+        //         name: "SK",
+        //         type: dynamodb.AttributeType.STRING,
+        //     },
+        // });
 
         /**
          * Lambda functions
@@ -93,7 +120,6 @@ export class BackendStack extends cdk.Stack {
             environmentVariables: {
                 FILE_NAME: environment.fileName,
             },
-            duration: cdk.Duration.minutes(1),
             s3Buckets: {
                 "S3_BUCKET": assetsSourceBucket,
             },
@@ -103,38 +129,70 @@ export class BackendStack extends cdk.Stack {
         });
         
         // Node LLRT
-        new NodeLlrtLambdaConstruct(this, "NodeLLRTProcessFileLambda", {
-            name: "node-llrt-process-file",
-            entry: "node-llrt-process-file",
+        // new NodeLlrtLambdaConstruct(this, "NodeLLRTProcessFileLambda", {
+        //     name: "node-llrt-process-file",
+        //     entry: "node-llrt-process-file",
+        //     environment,
+        //     environmentVariables: {
+        //         FILE_NAME: environment.fileName,
+        //     },
+        //     s3Buckets: {
+        //         "S3_BUCKET": assetsSourceBucket,
+        //     },
+        //     // dynamoDB: {
+        //     //     "DB_TABLE": nodeLlrtDynamoDBTable,
+        //     // },
+        // });
+
+        // Rust
+        // new RustLambdaConstruct(this, "RustProcessFileLambda", {
+        //     name: "rust-process-file",
+        //     entry: "rust-process-file",
+        //     environment,
+        //     environmentVariables: {
+        //         FILE_NAME: environment.fileName,
+        //     },
+        //     s3Buckets: {
+        //         "S3_BUCKET": assetsSourceBucket,
+        //     },
+        //     dynamoDB: {
+        //         "DB_TABLE": rustDynamoDBTable,
+        //     },
+        // });
+
+        // Python with Pandas
+        new PythonLambdaConstruct(this, "PythonProcessFileLambda", {
+            name: "python-process-file",
+            entry: "python-process-file",
+            index: "python_process_file/index.py",
             environment,
             environmentVariables: {
                 FILE_NAME: environment.fileName,
             },
-            duration: cdk.Duration.minutes(1),
             s3Buckets: {
                 "S3_BUCKET": assetsSourceBucket,
             },
             dynamoDB: {
-                "DB_TABLE": nodeLlrtDynamoDBTable,
+                "DB_TABLE": pythonDynamoDBTable,
             },
         });
 
-        // Rust
-        new RustLambdaConstruct(this, "RustProcessFileLambda", {
-            name: "rust-process-file",
-            entry: "rust-process-file",
-            environment,
-            environmentVariables: {
-                FILE_NAME: environment.fileName,
-            },
-            duration: cdk.Duration.minutes(1),
-            s3Buckets: {
-                "S3_BUCKET": assetsSourceBucket,
-            },
-            dynamoDB: {
-                "DB_TABLE": rustDynamoDBTable,
-            },
-        });
+        // Python with Polars
+        // new PythonLambdaConstruct(this, "PythonPolarsProcessFileLambda", {
+        //     name: "python-polars-process-file",
+        //     entry: "python-polars-process-file",
+        //     index: "python_polars_process_file/index.py",
+        //     environment,
+        //     environmentVariables: {
+        //         FILE_NAME: environment.fileName,
+        //     },
+        //     s3Buckets: {
+        //         "S3_BUCKET": assetsSourceBucket,
+        //     },
+        //     dynamoDB: {
+        //         "DB_TABLE": pythonPolarsDynamoDBTable,
+        //     },
+        // });
         
     }
 }

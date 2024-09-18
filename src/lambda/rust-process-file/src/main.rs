@@ -39,6 +39,9 @@ struct TableItem {
 
 type GroupedData = HashMap<(String, String), (f64, usize, HashMap<String, usize>)>;
 
+// diagnostico1-hospital2-3-tratamiento1 // curigua
+// diagnostico1-hospital1-5-tratamiento2 // yoga
+
 #[tracing::instrument(skip(event, s3_client, dynamodb_client))]
 
 async fn function_handler(

@@ -186,8 +186,8 @@ async function getObjectFromBucket(filePath: string, bucket: string): Promise<Ge
 
 async function writeDataToDB(averages: Average[], requestId: string, dynamoDBTable: string) {
     try {
+        const partitionKey = requestId;
         const putRequests = averages.map((average) => {
-            const partitionKey = requestId;
             const sortKey = `#diagnosis#${average.Diagnosis}#hospital#${average.Hospital}`;
             
             const putRequest = {
