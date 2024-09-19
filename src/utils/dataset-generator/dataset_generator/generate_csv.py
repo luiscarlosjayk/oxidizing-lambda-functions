@@ -16,7 +16,7 @@ hospitals = [
 diagnoses = [
     'Hypertension', 'Diabetes', 'Asthma', 'Pneumonia', 'COVID-19', 'Heart Disease', 
     'Chronic Kidney Disease', 'Stroke', 'COPD', 'Cancer', 'Anxiety', 'Depression', 
-    'Arthritis', 'Obesity', 'Alzheimer\'s', 'Epilepsy', 'Migraine', 'Tuberculosis', 
+    'Arthritis', 'Obesity', 'Alzheimer', 'Epilepsy', 'Migraine', 'Tuberculosis', 
     'Liver Cirrhosis', 'Leukemia'
 ]
 
@@ -34,7 +34,7 @@ for _ in range(rows):  # Generate 1,000,000 rows
     hospital = random.choice(hospitals)
     diagnosis = random.choice(diagnoses)
     treatment = random.choice(treatments)
-    recovery_time = round(random.uniform(5, 60), 2)  # Random recovery time between 5 and 60 days
+    recovery_time = random.randint(5, 60)  # Random recovery time between 5 and 60 days
     data.append([hospital, diagnosis, treatment, recovery_time])
 
 # Create DataFrame
