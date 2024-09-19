@@ -45,4 +45,4 @@ __pycache__
 src/utils/dataset_generator/*.csv
 
 # Large dataset
-src/assets/very_large_medical_records.csv
+src/assets/one_million_rows_medical_records.csv
