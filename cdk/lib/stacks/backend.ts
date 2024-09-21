@@ -43,18 +43,18 @@ export class BackendStack extends cdk.Stack {
         /**
          * DynamoDB table
          */
-        // const nodeLlrtDynamoDBTable = new DynamoDBTableConstruct(this, "NodeLLRTDynamoDBTable", {
-        //     tableName: "node-llrt-hospital-averages-table",
-        //     environment,
-        //     partitionKey: {
-        //         name: "PK",
-        //         type: dynamodb.AttributeType.STRING,
-        //     },
-        //     sortKey: {
-        //         name: "SK",
-        //         type: dynamodb.AttributeType.STRING,
-        //     },
-        // });
+        const nodeLlrtDynamoDBTable = new DynamoDBTableConstruct(this, "NodeLLRTDynamoDBTable", {
+            tableName: "node-llrt-hospital-averages-table",
+            environment,
+            partitionKey: {
+                name: "PK",
+                type: dynamodb.AttributeType.STRING,
+            },
+            sortKey: {
+                name: "SK",
+                type: dynamodb.AttributeType.STRING,
+            },
+        });
         
         const node20DynamoDBTable = new DynamoDBTableConstruct(this, "Node20DynamoDBTable", {
             tableName: "node-20-hospital-averages-table",
@@ -129,20 +129,20 @@ export class BackendStack extends cdk.Stack {
         });
         
         // Node LLRT
-        // new NodeLlrtLambdaConstruct(this, "NodeLLRTProcessFileLambda", {
-        //     name: "node-llrt-process-file",
-        //     entry: "node-llrt-process-file",
-        //     environment,
-        //     environmentVariables: {
-        //         FILE_NAME: environment.fileName,
-        //     },
-        //     s3Buckets: {
-        //         "S3_BUCKET": assetsSourceBucket,
-        //     },
-        //     // dynamoDB: {
-        //     //     "DB_TABLE": nodeLlrtDynamoDBTable,
-        //     // },
-        // });
+        new NodeLlrtLambdaConstruct(this, "NodeLLRTProcessFileLambda", {
+            name: "node-llrt-process-file",
+            entry: "node-llrt-process-file",
+            environment,
+            environmentVariables: {
+                FILE_NAME: environment.fileName,
+            },
+            s3Buckets: {
+                "S3_BUCKET": assetsSourceBucket,
+            },
+            dynamoDB: {
+                "DB_TABLE": nodeLlrtDynamoDBTable,
+            },
+        });
 
         // Rust
         // new RustLambdaConstruct(this, "RustProcessFileLambda", {

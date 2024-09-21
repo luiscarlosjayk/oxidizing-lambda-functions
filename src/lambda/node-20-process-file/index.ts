@@ -1,17 +1,10 @@
+import { Context } from "aws-lambda";
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 import { BatchWriteItemCommand, BatchWriteItemCommandInput, DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { Readable } from "stream";
-import { Context } from "aws-lambda";
-import { createInterface } from "readline";
+import { Readable, pipeline, Transform, Writable } from "stream";
+import { promisify } from "util";
 
 // Types
-interface Row {
-    hospital: string;
-    diagnosis: string;
-    treatment: string;
-    recoveryTime: number;
-}
-type Column = keyof Row;
 type AverageRecoveryTimesMapValueType = {
     sum: number;
     count: number;
@@ -21,6 +14,7 @@ type AverageRecoveryTimesMapValueType = {
 }
 type AverageRecoveryTimesMap = Map<string, AverageRecoveryTimesMapValueType>;
 
+
 // AWS SDK clients
 const s3Client = new S3Client();
 const dynamoDBClient = new DynamoDBClient();
@@ -28,27 +22,24 @@ const dynamoDBClient = new DynamoDBClient();
 // Environment variables
 const { DB_TABLE, S3_BUCKET, FILE_NAME } = process.env;
 
+// Local testing
+// const DB_TABLE = "oxidizing-lambda-functions-node-20-hospital-averages-table";
+// const S3_BUCKET = "oxidizing-lambda-functions-assets-source";
+// const FILE_NAME = "one_million_rows_medical_records.csv";
+// const FILE_NAME = "one_hundred_medical_records.csv";
+
 export async function handler(_: unknown, context: Context) {
+    console.time("handler");
     try {
-        if (!isNonEmptyString(S3_BUCKET)) {
-            throw TypeError("S3_BUCKET environment variable is invalid or missing.");
-        }
+        if (!isNonEmptyString(S3_BUCKET)) throw TypeError("S3_BUCKET environment variable is invalid or missing.");
+        if (!isNonEmptyString(FILE_NAME)) throw TypeError("FILE_NAME environment variable is invalid or missing.");
+        if (!isNonEmptyString(DB_TABLE)) throw TypeError("DB_TABLE environment variable is invalid or missing.");
 
-        if (!isNonEmptyString(FILE_NAME)) {
-            throw TypeError("FILE_NAME environment variable is invalid or missing.");
-        }
-
-        if (!isNonEmptyString(DB_TABLE)) {
-            throw TypeError("DB_TABLE environment variable is invalid or missing.");
-        }
-
-        const requestId = context.awsRequestId;
-        
         // Read and process CSV data
-        const averages = await processCsvData(S3_BUCKET, FILE_NAME, requestId);
-
+        const averages = await processCsvData(S3_BUCKET, FILE_NAME);
+        
         // Store results in DynamoDB table
-        // await storeResultsInDynamoDB(averages, context.awsRequestId, DB_TABLE);
+        await storeResultsInDynamoDB(averages, context.awsRequestId, DB_TABLE);
         
         console.info("File processed successfully");
     } catch(err: unknown) {
@@ -57,97 +48,107 @@ export async function handler(_: unknown, context: Context) {
     }
 }
 
-async function processCsvData(bucket: string, key: string, requestId: string): Promise<AverageRecoveryTimesMap> {
-    // Create S3 stream for the file
+// Process CSV data and calculate average recovery times
+async function processCsvData(bucket: string, key: string): Promise<AverageRecoveryTimesMap> {
     const s3Stream = await getS3Stream(bucket, key);
-    
+
     // Aggregation storage
     const averageRecoveryTimes: AverageRecoveryTimesMap = new Map();
     
-    return new Promise((resolve, reject) => {
-        try {
-            const rl = createInterface({
-                input: s3Stream,
-                crlfDelay: Infinity,
-            })
-            let lineNumber = 1;
+    let leftOver = ""; // Possible remaining incomplete line
+    let isFirstLine = true; // Helper flag to remove headers at first line
+    const lineSplitter = new Transform({
+        readableObjectMode: true,
+        transform(chunk: string, _encoding, callback) {
+            const chunkString = leftOver + chunk.toString();
+            const lines = chunkString.split(/\r?\n/);
+            
+            // Remove headers line
+            if (isFirstLine) {
+                lines.shift();
+                isFirstLine = false;
+            }
+            
+            // Removes and stores last possible partial line from the chunk
+            leftOver = lines.pop() || "";
 
-            rl
-                .on("line", (line: string) => {
-                    lineNumber++;
-                
-                    // Skip the header line
-                    if (lineNumber === 1) return;
+            this.push(lines);
+            callback();
+        },
+        // Handle last line if any
+        flush(callback) {
+            if (leftOver) {
+                this.push([leftOver]); // Process the last remaining line
+            }
+            callback();
+        },
+    });
 
-                    // Split line into columns based on comma delimiter
-                    const columns = line.split(',');
+    const linesProcessor = new Writable({
+        objectMode: true,
+        write(lines: string[], _encoding, callback) {
+            try {
+                if (Array.isArray(lines)) {
+                    processLines(lines, averageRecoveryTimes);
+                } else {
+                    callback(new Error(`Expected an array of lines, but got: ${typeof lines}`));
+                }
+            } catch (err: unknown) {
+                console.error(`Failed to process lines: ${lines.join(", ")}`, err);
+            }
 
-                    // Check for valid line format
-                    if (columns.length !== 4) {
-                        console.warn(`Skipping malformed row at line ${lineNumber}:`, line);
-                        return;
-                    }
+            callback();
+        },
+    });
+    
+    await promisify(pipeline)(
+        s3Stream,
+        lineSplitter,
+        linesProcessor,
+    );
 
-                    // Extract data from columns
-                    const [hospital, diagnosis, treatment, recoveryTimeStr] = columns;
-                    const recoveryTime = parseInt(recoveryTimeStr, 10);
+    return averageRecoveryTimes;
+}
 
-                    if (isNaN(recoveryTime)) {
-                        console.warn(`Invalid recoveryTime at line ${lineNumber}:`, line);
-                        return;
-                    }
+function processLines(lines: string[], averageRecoveryTimes: AverageRecoveryTimesMap): void {
+    lines.forEach((line) =>{
+        const columns = line.split(",");
 
-                    // Create a Row object
-                    const chunk: Row = {
-                        hospital,
-                        diagnosis,
-                        treatment,
-                        recoveryTime
-                    };
+        if (columns.length !== 4) {
+            throw new Error(`Expected line to have four columns, instead found: ${columns.length}`);
+        }
 
-                    // console.log(`chunk from file (${lineNumber}):`, chunk);
+        const [hospital, diagnosis, treatment, recoveryTimeStr] = columns;
+        const recoveryTime = parseInt(recoveryTimeStr, 10);
 
-                    // Generate key for map storage
-                    const key = `${chunk.hospital}${chunk.diagnosis}`;
-                    const agg = averageRecoveryTimes.get(key);
+        if (isNaN(recoveryTime)) {
+            throw new Error(`Invalid recoveryTime at line: ${line}`);
+        }
+        
+        // Generate key for map storage
+        const key = `${hospital}${diagnosis}`;
+        const agg = averageRecoveryTimes.get(key);
 
-                    if (agg) {
-                        agg.count++;
-                        agg.sum += chunk.recoveryTime;
+        if (agg) {
+            agg.count++;
+            agg.sum += recoveryTime;
 
-                        const treatmentAggCount = agg.treatmentCounts[chunk.treatment] ?? 0;
-                        agg.treatmentCounts[chunk.treatment] = treatmentAggCount + 1;
-                    } else {
-                        // Initialize if doesn't exist
-                        averageRecoveryTimes.set(key, {
-                            hospital: chunk.hospital,
-                            diagnosis: chunk.diagnosis,
-                            count: 1,
-                            sum: chunk.recoveryTime,
-                            treatmentCounts: { [chunk.treatment]: 1 },
-                        });
-                    }
-                })
-                .on("close", () => {
-                    const used = process.memoryUsage().heapUsed / 1024 / 1024;
-                    console.log(`The script uses approximately ${Math.round(used * 100) / 100} MB`);
-                    
-                    // console.log("=================================");
-                    // console.log(averageRecoveryTimes);
-                    resolve(averageRecoveryTimes);
-                })
-                .on("error", (err: unknown) => {
-                    console.error(err);
-                    reject(err);
-                });
-        } catch(err: unknown) {
-            console.error(err);
-            reject(err);
+            const treatmentAggCount = agg.treatmentCounts[treatment] ?? 0;
+            agg.treatmentCounts[treatment] = treatmentAggCount + 1;
+        } else {
+            // Initialize if doesn't exist
+            averageRecoveryTimes.set(key, {
+                hospital: hospital,
+                diagnosis: diagnosis,
+                count: 1,
+                sum: recoveryTime,
+                treatmentCounts: { [treatment]: 1 },
+            });
         }
     });
 }
 
-// Helper function to get S3 stream
+// Helper function to get the S3 object as a stream
 async function getS3Stream(bucket: string, key: string): Promise<Readable> {
     const command = new GetObjectCommand({ Bucket: bucket, Key: key });
     const { Body } = await s3Client.send(command);
@@ -167,9 +168,9 @@ async function storeResultsInDynamoDB(aggregatedData: AverageRecoveryTimesMap, r
         // Calculate average recovery time
         const averageRecoveryTime = aggregatedDataValue.sum / aggregatedDataValue.count;
         // Calculate the most frequent treatment used per hospita/diagnosis
-        // const mostFrequentTreatment = Object.entries(aggregatedDataValue.treatmentCounts).reduce((prevTreatment, currTreatment) => {
-        //     return prevTreatment[1] > currTreatment[1] ? prevTreatment : currTreatment;
-        // });
+        const mostFrequentTreatment = Object.entries(aggregatedDataValue.treatmentCounts).reduce((prevTreatment, currTreatment) => {
+            return prevTreatment[1] > currTreatment[1] ? prevTreatment : currTreatment;
+        });
 
         const sortKey = `#diagnosis#${aggregatedDataValue.diagnosis}#hospital#${aggregatedDataValue.hospital}`;
         const putRequest = {
@@ -179,7 +180,7 @@ async function storeResultsInDynamoDB(aggregatedData: AverageRecoveryTimesMap, r
                     SK: { S: sortKey },
                     Hospital: { S: aggregatedDataValue.hospital },
                     Diagnosis: { S: aggregatedDataValue.diagnosis },
-                    // MostUsedTreatment: { S: mostFrequentTreatment[0] },
+                    MostUsedTreatment: { S: mostFrequentTreatment[0] },
                     AverageRecoveryTime: { N: averageRecoveryTime.toString() },
                 },
             }
@@ -203,10 +204,48 @@ async function storeResultsInDynamoDB(aggregatedData: AverageRecoveryTimesMap, r
     }
 }
 
+// Helper functions
 function isReadable(input: unknown): input is Readable {
     return input instanceof Readable;
 }
 
 function isNonEmptyString(input: unknown): input is string {
     return typeof input === "string" && input.length > 0;
+}
+
+function logMemoryUsage() {
+    console.log("=================================");
+    const used = process.memoryUsage();
+    const heapUsed = used.heapUsed / 1024 / 1024;
+    const heapTotal = used.heapTotal / 1024 / 1024;
+    console.log(`The script uses approximately ${Math.round(heapUsed * 100) / 100} MB of a total ${Math.round(heapTotal)} MB`);
+    console.timeEnd("handler");
+    console.log("=================================");
+}
+
+
+// Local testing
+function localTesting() {
+    handler(null, {
+        awsRequestId: "123",
+        callbackWaitsForEmptyEventLoop: false,
+        functionName: "",
+        functionVersion: "",
+        invokedFunctionArn: "",
+        memoryLimitInMB: "",
+        logGroupName: "",
+        logStreamName: "",
+        getRemainingTimeInMillis: function (): number {
+            throw new Error("Function not implemented.");
+        },
+        done: function (error?: Error, result?: any): void {
+            throw new Error("Function not implemented.");
+        },
+        fail: function (error: Error | string): void {
+            throw new Error("Function not implemented.");
+        },
+        succeed: function (messageOrObject: any): void {
+            throw new Error("Function not implemented.");
+        }
+    });
 }
