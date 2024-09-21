@@ -4,13 +4,9 @@ use aws_sdk_dynamodb::{
     types::{AttributeValue, PutRequest, WriteRequest},
 };
 use aws_sdk_s3::{self as s3, operation::get_object::GetObjectOutput};
-use lambda_http::{
-    http::{header, StatusCode},
-    run, service_fn,
-    tower::ServiceBuilder,
-    tracing, Body, Error, Request, RequestExt, Response,
-};
+use lambda_runtime::{service_fn, tracing, Error, LambdaEvent};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::HashMap;
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -39,22 +35,16 @@ struct TableItem {
 
 type GroupedData = HashMap<(String, String), (f64, usize, HashMap<String, usize>)>;
 
-// diagnostico1-hospital2-3-tratamiento1 // curigua
-// diagnostico1-hospital1-5-tratamiento2 // yoga
-
 #[tracing::instrument(skip(event, s3_client, dynamodb_client))]
 
 async fn function_handler(
-    event: Request,
+    event: LambdaEvent<Value>,
     s3_client: &s3::Client,
     dynamodb_client: &dynamodb::Client,
-) -> Result<Response<Body>, Error> {
+) -> Result<(), Error> {
     // Extract request_id from event
-    let lambda_http::request::RequestContext::ApiGatewayV1(request_context) =
-        event.request_context();
-    let request_id = request_context
-        .request_id
-        .ok_or(Error::from("Expected request_id to be set"))?;
+    let (_, context) = event.into_parts();
+    let request_id = context.request_id;
 
     // Read environment variables
     let bucket_name =
@@ -70,15 +60,9 @@ async fn function_handler(
     // Store the averages in DynamoDB
     store_results_in_dynamodb(dynamodb_client, &db_table, averages, &request_id).await?;
 
-    // tracing::info!("Averages: {:#?}", &averages);
+    tracing::info!("File processed successfully");
 
-    let resp = Response::builder()
-        .status(StatusCode::OK)
-        .header(header::CONTENT_TYPE, mime::TEXT_HTML.to_string())
-        .body(Body::Empty)
-        .map_err(Box::new)?;
-
-    Ok(resp)
+    Ok(())
 }
 
 async fn process_csv_data(
@@ -89,7 +73,7 @@ async fn process_csv_data(
     // Gets the csv file from S3
     let get_object_response = get_object_from_bucket(file_name, bucket_name, s3_client).await?;
 
-    // Collects the byte strem into a single buffer
+    // Collects the byte stream into a single buffer
     let bytes = get_object_response.body.collect().await?.into_bytes();
 
     // Parse the csv file
@@ -232,12 +216,13 @@ async fn main() -> Result<(), Error> {
     let dynamodb_client = dynamodb::Client::new(&sdk_config);
     let dynamodb_client_ref = &dynamodb_client;
 
-    let func = service_fn(move |event| async move {
-        function_handler(event, s3_client_ref, dynamodb_client_ref).await
+    // Define the Lambda handler function with `service_fn`
+    let handler = service_fn(|event: LambdaEvent<Value>| {
+        function_handler(event, s3_client_ref, dynamodb_client_ref)
     });
-    let handler = ServiceBuilder::new().service(func);
 
-    run(handler).await?;
+    // Run the Lambda function
+    lambda_runtime::run(handler).await?;
 
     Ok(())
 }

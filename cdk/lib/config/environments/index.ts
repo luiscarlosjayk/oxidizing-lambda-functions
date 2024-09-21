@@ -1,12 +1,11 @@
 import { Duration } from "aws-cdk-lib";
-import type { Environment } from "../../types/environment";
+import { Environment, NUMBER_OF_ROWS } from "../../types/environment";
 
 const environment: Environment = {
     appName: "oxidizing-lambda-functions",
     region: "us-east-1",
     provisionedConcurrencyEnabled: false,
-    fileName: "one_hundred_medical_records.csv",
-    // fileName: "one_million_rows_medical_records.csv",
+    numberOfRows: NUMBER_OF_ROWS.ONE_MILLION,
     memorySize: 512,
     duration: Duration.minutes(5),
 };  

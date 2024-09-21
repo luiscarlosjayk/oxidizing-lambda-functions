@@ -1,2 +1,2 @@
 export const LAMBDA_BASEPATH = "../../../src/lambda";
-export const ASSETS_BASEPATH = "../../../src/assets";
+export const ASSETS_BASEPATH = "../assets";
