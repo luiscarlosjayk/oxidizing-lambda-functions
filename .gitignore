@@ -43,6 +43,3 @@ node_modules/
 # Python
 __pycache__
 src/utils/dataset_generator/*.csv
-
-# Large dataset
-src/assets/very_large_medical_records.csv

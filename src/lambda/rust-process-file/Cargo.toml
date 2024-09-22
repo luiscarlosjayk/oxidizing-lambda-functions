@@ -6,15 +6,9 @@ authors = ["Luis Carlos Osorio Jayk <https://github.com/luiscarlosjayk/>"]
 
 [dependencies]
 aws-config = { version = "1.5.6", features = ["behavior-version-latest"] }
-aws-sdk-dynamodb = "1.45.0"
-aws-sdk-s3 = "1.49.0"
-aws_lambda_events = { version = "0.15.1", default-features = false, features = [
-    "apigw",
-] }
-lambda_http = { version = "0.13.0", default-features = false, features = [
-    "apigw_rest",
-    "tracing",
-] }
+aws-sdk-dynamodb = "1.47.0"
+aws-sdk-s3 = "1.51.0"
+lambda_runtime = { version = "0.13.0", default-features = false, features = ["tracing"] }
 mime = "0.3.17"
 quick-csv = "0.1.6"
 serde = "1.0.210"

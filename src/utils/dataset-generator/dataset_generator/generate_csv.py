@@ -16,7 +16,7 @@ hospitals = [
 diagnoses = [
     'Hypertension', 'Diabetes', 'Asthma', 'Pneumonia', 'COVID-19', 'Heart Disease', 
     'Chronic Kidney Disease', 'Stroke', 'COPD', 'Cancer', 'Anxiety', 'Depression', 
-    'Arthritis', 'Obesity', 'Alzheimer\'s', 'Epilepsy', 'Migraine', 'Tuberculosis', 
+    'Arthritis', 'Obesity', 'Alzheimer', 'Epilepsy', 'Migraine', 'Tuberculosis', 
     'Liver Cirrhosis', 'Leukemia'
 ]
 
@@ -26,19 +26,20 @@ treatments = [
     'Rehabilitation C', 'Medication D', 'Therapy D', 'Surgery D'
 ]
 
-# Create random data for 1,000,000 rows which size is around 48 MB
-# Modify this line depending the number of rows and file size you'd like to test against
-data = []
-rows = 1000000
-for _ in range(rows):  # Generate 1,000,000 rows
-    hospital = random.choice(hospitals)
-    diagnosis = random.choice(diagnoses)
-    treatment = random.choice(treatments)
-    recovery_time = round(random.uniform(5, 60), 2)  # Random recovery time between 5 and 60 days
-    data.append([hospital, diagnosis, treatment, recovery_time])
+def start():
+    # Create random data for 1,000,000 rows which size is around 48 MB
+    # Modify this line depending the number of rows and file size you'd like to test against
+    data = []
+    rows = 1000000
+    for _ in range(rows):  # Generate 1,000,000 rows
+        hospital = random.choice(hospitals)
+        diagnosis = random.choice(diagnoses)
+        treatment = random.choice(treatments)
+        recovery_time = random.randint(5, 60)  # Random recovery time between 5 and 60 days
+        data.append([hospital, diagnosis, treatment, recovery_time])
 
-# Create DataFrame
-df = pd.DataFrame(data, columns=columns)
+    # Create DataFrame
+    df = pd.DataFrame(data, columns=columns)
 
-# Save to CSV
-df.to_csv(f"rows_{rows}_medical_records.csv", index=False)
+    # Save to CSV
+    df.to_csv(f"rows_{rows}_medical_records.csv", index=False)

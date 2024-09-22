@@ -1,141 +1,251 @@
+import { Context } from "aws-lambda";
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, BatchWriteCommand } from "@aws-sdk/lib-dynamodb";
-import { inferSchema, initParser } from 'udsv';
-import { Readable } from 'stream';
-import { Context, APIGatewayProxyResult } from 'aws-lambda';
+import { BatchWriteItemCommand, BatchWriteItemCommandInput, DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { Readable, pipeline, Transform, Writable } from "stream";
+import { promisify } from "util";
 
-// Initialize AWS SDK clients
+// Types
+type AverageRecoveryTimesMapValueType = {
+    sum: number;
+    count: number;
+    hospital: string;
+    diagnosis: string;
+    treatmentCounts: Record<string, number>;
+}
+type AverageRecoveryTimesMap = Map<string, AverageRecoveryTimesMapValueType>;
+
+
+// AWS SDK clients
 const s3Client = new S3Client();
-const ddbClient = new DynamoDBClient();
-const ddbDocClient = DynamoDBDocumentClient.from(ddbClient);
+const dynamoDBClient = new DynamoDBClient();
 
 // Environment variables
-const DB_TABLE = process.env.DB_TABLE!;
-const S3_BUCKET = process.env.S3_BUCKET!;
-const FILE_NAME = process.env.FILE_NAME!;
+const { DB_TABLE, S3_BUCKET, FILE_NAME } = process.env;
 
-interface CSVRecord {
-    Hospital: string;
-    Diagnosis: string;
-    'Recovery Time': string;
-    Treatment: string;
-}
+// Local testing
+// const DB_TABLE = "oxidizing-lambda-functions-node-20-hospital-averages-table";
+// const S3_BUCKET = "oxidizing-lambda-functions-assets-source";
+// const FILE_NAME = "one_million_rows_medical_records.csv";
+// const FILE_NAME = "one_hundred_medical_records.csv";
 
-interface AggregatedData {
-    Hospital: string;
-    Diagnosis: string;
-    totalRecoveryTime: number;
-    count: number;
-    treatments: Map<string, number>;
-}
-
-interface ProcessedResult {
-    Hospital: string;
-    Diagnosis: string;
-    AverageRecoveryTime: string;
-    MostUsedTreatment: string;
-}
-
-export const handler = async (event: any, context: Context): Promise<APIGatewayProxyResult> => {
+export async function handler(_: unknown, context: Context) {
+    console.time("handler");
     try {
-        await processCSVData(S3_BUCKET, FILE_NAME, context.awsRequestId);
-        return {
-            statusCode: 200,
-            body: 'Data processed and stored successfully!'
-        };
-    } catch (error) {
-        console.error('Error:', error);
-        return {
-            statusCode: 500,
-            body: 'Error processing data'
-        };
+        if (!isNonEmptyString(S3_BUCKET)) throw TypeError("S3_BUCKET environment variable is invalid or missing.");
+        if (!isNonEmptyString(FILE_NAME)) throw TypeError("FILE_NAME environment variable is invalid or missing.");
+        if (!isNonEmptyString(DB_TABLE)) throw TypeError("DB_TABLE environment variable is invalid or missing.");
+
+        // Read and process CSV data
+        const averages = await processCsvData(S3_BUCKET, FILE_NAME);
+        
+        // Store results in DynamoDB table
+        await storeResultsInDynamoDB(averages, context.awsRequestId, DB_TABLE);
+        
+        console.info("File processed successfully");
+    } catch(err: unknown) {
+        console.error(err);
+        throw err;
     }
-};
+}
 
-async function processCSVData(bucket: string, key: string, requestId: string): Promise<void> {
-    // Get the CSV file from S3
-    const { Body } = await s3Client.send(new GetObjectCommand({
-        Bucket: bucket,
-        Key: key
-    }));
+// Process CSV data and calculate average recovery times
+async function processCsvData(bucket: string, key: string): Promise<AverageRecoveryTimesMap> {
+    const s3Stream = await getS3Stream(bucket, key);
 
-    if (!Body) {
-        throw new Error('Failed to retrieve file from S3');
-    }
+    // Aggregation storage
+    const averageRecoveryTimes: AverageRecoveryTimesMap = new Map();
+    
+    let leftOver = ""; // Possible remaining incomplete line
+    let isFirstLine = true; // Helper flag to remove headers at first line
+    const lineSplitter = new Transform({
+        readableObjectMode: true,
+        transform(chunk: string, _encoding, callback) {
+            const chunkString = leftOver + chunk.toString();
+            const lines = chunkString.split(/\r?\n/);
+            
+            // Remove headers line
+            if (isFirstLine) {
+                lines.shift();
+                isFirstLine = false;
+            }
+            
+            // Removes and stores last possible partial line from the chunk
+            leftOver = lines.pop() || "";
 
-    const bodyContents = await streamToString(Body as Readable);
-    const schema = inferSchema(bodyContents);
-    const parser = initParser(schema);
+            this.push(lines);
+            callback();
+        },
+        // Handle last line if any
+        flush(callback) {
+            if (leftOver) {
+                this.push([leftOver]); // Process the last remaining line
+            }
+            callback();
+        },
+    });
 
-    const dataAggregator = new Map<string, AggregatedData>();
+    const linesProcessor = new Writable({
+        objectMode: true,
+        write(lines: string[], _encoding, callback) {
+            try {
+                if (Array.isArray(lines)) {
+                    processLines(lines, averageRecoveryTimes);
+                } else {
+                    callback(new Error(`Expected an array of lines, but got: ${typeof lines}`));
+                }
+            } catch (err: unknown) {
+                console.error(`Failed to process lines: ${lines.join(", ")}`, err);
+            }
 
-    // Process the CSV data
-    const records = parser(bodyContents);
-    for (const record of records) {
-        const typedRecord = record as CSVRecord;
-        const groupKey = `${typedRecord.Hospital}|${typedRecord.Diagnosis}`;
-        if (!dataAggregator.has(groupKey)) {
-            dataAggregator.set(groupKey, {
-                Hospital: typedRecord.Hospital,
-                Diagnosis: typedRecord.Diagnosis,
-                totalRecoveryTime: 0,
-                count: 0,
-                treatments: new Map()
-            });
+            callback();
+        },
+    });
+    
+    await promisify(pipeline)(
+        s3Stream,
+        lineSplitter,
+        linesProcessor,
+    );
+
+    return averageRecoveryTimes;
+}
+
+function processLines(lines: string[], averageRecoveryTimes: AverageRecoveryTimesMap): void {
+    lines.forEach((line) =>{
+        const columns = line.split(",");
+
+        if (columns.length !== 4) {
+            throw new Error(`Expected line to have four columns, instead found: ${columns.length}`);
         }
 
-        const group = dataAggregator.get(groupKey)!;
-        group.totalRecoveryTime += parseFloat(typedRecord['Recovery Time']);
-        group.count += 1;
-        group.treatments.set(typedRecord.Treatment, (group.treatments.get(typedRecord.Treatment) || 0) + 1);
-    }
+        const [hospital, diagnosis, treatment, recoveryTimeStr] = columns;
+        const recoveryTime = parseInt(recoveryTimeStr, 10);
 
-    // Calculate final averages and most common treatments
-    const results: ProcessedResult[] = Array.from(dataAggregator.values()).map(group => ({
-        Hospital: group.Hospital,
-        Diagnosis: group.Diagnosis,
-        AverageRecoveryTime: (group.totalRecoveryTime / group.count).toFixed(2),
-        MostUsedTreatment: Array.from(group.treatments.entries()).reduce((a, b) => a[1] > b[1] ? a : b)[0]
-    }));
+        if (isNaN(recoveryTime)) {
+            throw new Error(`Invalid recoveryTime at line: ${line}`);
+        }
+        
+        // Generate key for map storage
+        const key = `${hospital}${diagnosis}`;
+        const agg = averageRecoveryTimes.get(key);
 
-    // Store results in DynamoDB
-    await storeResultsInDynamoDB(results, requestId);
+        if (agg) {
+            agg.count++;
+            agg.sum += recoveryTime;
 
-    console.log(`Processed ${results.length} unique Hospital-Diagnosis combinations`);
+            const treatmentAggCount = agg.treatmentCounts[treatment] ?? 0;
+            agg.treatmentCounts[treatment] = treatmentAggCount + 1;
+        } else {
+            // Initialize if doesn't exist
+            averageRecoveryTimes.set(key, {
+                hospital: hospital,
+                diagnosis: diagnosis,
+                count: 1,
+                sum: recoveryTime,
+                treatmentCounts: { [treatment]: 1 },
+            });
+        }
+    });
 }
 
-async function storeResultsInDynamoDB(results: ProcessedResult[], requestId: string): Promise<void> {
-    const batchSize = 25; // DynamoDB allows a maximum of 25 items per batch write
-    for (let i = 0; i < results.length; i += batchSize) {
-        const batch = results.slice(i, i + batchSize);
-        const params = {
-            RequestItems: {
-                [DB_TABLE]: batch.map(item => ({
-                    PutRequest: {
-                        Item: {
-                            PK: requestId,
-                            SK: `#diagnosis#${item.Diagnosis}#hospital#${item.Hospital}`,
-                            Hospital: item.Hospital,
-                            Diagnosis: item.Diagnosis,
-                            AverageRecoveryTime: item.AverageRecoveryTime,
-                            MostUsedTreatment: item.MostUsedTreatment
-                        }
-                    }
-                }))
+// Helper function to get the S3 object as a stream
+async function getS3Stream(bucket: string, key: string): Promise<Readable> {
+    const command = new GetObjectCommand({ Bucket: bucket, Key: key });
+    const { Body } = await s3Client.send(command);
+    
+    if (!isReadable(Body)) {
+        throw TypeError("Expected Body to be a Readable stream");
+    }
+    
+    return Body;
+}
+
+// Helper function to store aggregated results in DynamoDB
+async function storeResultsInDynamoDB(aggregatedData: AverageRecoveryTimesMap, requestId: string, dynamoDBTable: string) {
+    const putRequests = [];
+
+    for (const aggregatedDataValue of aggregatedData.values()) {
+        // Calculate average recovery time
+        const averageRecoveryTime = aggregatedDataValue.sum / aggregatedDataValue.count;
+        // Calculate the most frequent treatment used per hospita/diagnosis
+        const mostFrequentTreatment = Object.entries(aggregatedDataValue.treatmentCounts).reduce((prevTreatment, currTreatment) => {
+            return prevTreatment[1] > currTreatment[1] ? prevTreatment : currTreatment;
+        });
+
+        const sortKey = `#diagnosis#${aggregatedDataValue.diagnosis}#hospital#${aggregatedDataValue.hospital}`;
+        const putRequest = {
+            PutRequest: {
+                Item: {
+                    PK: { S: requestId },
+                    SK: { S: sortKey },
+                    Hospital: { S: aggregatedDataValue.hospital },
+                    Diagnosis: { S: aggregatedDataValue.diagnosis },
+                    MostUsedTreatment: { S: mostFrequentTreatment[0] },
+                    AverageRecoveryTime: { N: averageRecoveryTime.toString() },
+                },
             }
         };
 
-        await ddbDocClient.send(new BatchWriteCommand(params));
+        putRequests.push(putRequest);
+    }
+    
+    // Perform batch writes in chunks of 25 items due to DynamoDB limits
+    const chunkSize = 25;
+    for(let i = 0; i < putRequests.length; i += chunkSize) {
+        const chunk = putRequests.slice(i, i + chunkSize);
+        const input: BatchWriteItemCommandInput = {
+            RequestItems: {
+                [dynamoDBTable]: chunk,
+            },
+        };
+        const command = new BatchWriteItemCommand(input);
+        
+        await dynamoDBClient.send(command);
     }
 }
 
-// Helper function to convert a readable stream to a string
-async function streamToString(stream: Readable): Promise<string> {
-    return new Promise((resolve, reject) => {
-        const chunks: Uint8Array[] = [];
-        stream.on('data', (chunk) => chunks.push(chunk));
-        stream.on('error', reject);
-        stream.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')));
+// Helper functions
+function isReadable(input: unknown): input is Readable {
+    return input instanceof Readable;
+}
+
+function isNonEmptyString(input: unknown): input is string {
+    return typeof input === "string" && input.length > 0;
+}
+
+function logMemoryUsage() {
+    console.log("=================================");
+    const used = process.memoryUsage();
+    const heapUsed = used.heapUsed / 1024 / 1024;
+    const heapTotal = used.heapTotal / 1024 / 1024;
+    console.log(`The script uses approximately ${Math.round(heapUsed * 100) / 100} MB of a total ${Math.round(heapTotal)} MB`);
+    console.timeEnd("handler");
+    console.log("=================================");
+}
+
+
+// Local testing
+function localTesting() {
+    handler(null, {
+        awsRequestId: "123",
+        callbackWaitsForEmptyEventLoop: false,
+        functionName: "",
+        functionVersion: "",
+        invokedFunctionArn: "",
+        memoryLimitInMB: "",
+        logGroupName: "",
+        logStreamName: "",
+        getRemainingTimeInMillis: function (): number {
+            throw new Error("Function not implemented.");
+        },
+        done: function (error?: Error, result?: any): void {
+            throw new Error("Function not implemented.");
+        },
+        fail: function (error: Error | string): void {
+            throw new Error("Function not implemented.");
+        },
+        succeed: function (messageOrObject: any): void {
+            throw new Error("Function not implemented.");
+        }
     });
 }
