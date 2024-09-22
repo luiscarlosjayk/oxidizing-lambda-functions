@@ -6,6 +6,9 @@ Tools:
 
 -   [Profiling functions with AWS Lambda Power Tuning](https://docs.aws.amazon.com/lambda/latest/operatorguide/profile-functions.html)
 
+Check this for the talk on how to explain how lambda cold starts work:
+https://www.apexon.com/blog/optimizing-aws-lambda-handling-cold-starts-for-serverless-heavy-applications/
+
 # Lambda Strategies
 
 ## Python
