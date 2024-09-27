@@ -5,9 +5,9 @@
  * - https://docs.aws.amazon.com/code-library/latest/ug/s3_example_s3_Scenario_UsingLargeFiles_section.html
  * - (end of) https://github.com/awslabs/llrt?tab=readme-ov-file#using-aws-sdk-v3-with-llrt
  */
-import { Context } from "aws-lambda";
-import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 import { BatchWriteItemCommand, BatchWriteItemCommandInput, DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { Context } from "aws-lambda";
 
 // Types
 type AverageRecoveryTimesMapValueType = {
