@@ -8,6 +8,10 @@ For the benchmarks, I've used the [AWS Lambda Power Tuning](https://docs.aws.ama
 
 <img src="img/architecture-diagram.png" alt="architecture diagram" style="display:block;margin:auto;"  height="700px">
 
+# How to Deploy
+
+Instructions for deployment of this stack can be found at [docs/HOW_TO_DEPLOY.md](docs/HOW_TO_DEPLOY.md)
+
 ## Lambda Strategies
 
 Lambda supports multiple languages through the use of runtimes. A runtime provides a language-specific environment that relays invocation events, context information, and responses between Lambda and the function.
