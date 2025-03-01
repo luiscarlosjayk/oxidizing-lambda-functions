@@ -10,6 +10,7 @@ import {
     S3BucketConstruct,
 } from '../constructs';
 import { Environment } from '../types';
+import { ExtensionStack } from './nested/extension';
 
 export interface BackendStackProps extends cdk.StackProps {
     environment: Environment;
@@ -20,6 +21,13 @@ export class BackendStack extends cdk.Stack {
         super(scope, id, props);
 
         const environment = props.environment;
+
+        /**
+         * Extension Stack
+         */
+        new ExtensionStack(this, 'ExtensionStack', {
+            environment,
+        });
 
         /**
          * S3 Buckets

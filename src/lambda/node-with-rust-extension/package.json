@@ -1,0 +1,23 @@
+{
+    "name": "node-with-rust-extension",
+    "version": "0.1.0",
+    "description": "Nodejs lambda that invokes a rust extension",
+    "main": "index.ts",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/luiscarlosjayk/oxidizing-lambda-functions"
+    },
+    "author": {
+        "name": "Luis Carlos Osorio Jayk"
+    },
+    "license": "ISC",
+    "devDependencies": {
+        "@types/aws-lambda": "^8.10.147",
+        "@types/node": "^22.13.7",
+        "ts-node": "^10.9.2",
+        "typescript": "^5.8.2"
+    },
+    "dependencies": {
+        "aws-lambda": "^1.0.7"
+    }
+}

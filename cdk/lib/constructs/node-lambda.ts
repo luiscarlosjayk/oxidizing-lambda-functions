@@ -8,6 +8,8 @@ import { LambdaConstruct, LambdaConstructProps } from './lambda-construct';
 export interface Node20LambdaConstructProps extends LambdaConstructProps {};
 
 export class NodeLambdaConstruct extends LambdaConstruct {
+    public lambda: nodejsLambda.NodejsFunction;
+
     constructor(scope: Construct, id: string, props: Node20LambdaConstructProps) {
         super(scope, id, props);
 
