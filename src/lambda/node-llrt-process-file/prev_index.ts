@@ -1,18 +1,18 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from "aws-lambda";
+import { BatchWriteItemCommand, BatchWriteItemCommandInput, DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import {
-    S3Client,
     GetObjectCommand,
     GetObjectCommandInput,
     GetObjectCommandOutput,
-} from "@aws-sdk/client-s3";
-import { DynamoDBClient, BatchWriteItemCommand, BatchWriteItemCommandInput } from "@aws-sdk/client-dynamodb";
-import * as udsv from "udsv";
+    S3Client,
+} from '@aws-sdk/client-s3';
+import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
+import * as udsv from 'udsv';
 
 type Row = {
     Hospital: string;
     Diagnosis: string;
     Treatment: string;
-    "Recovery Time": string;
+    'Recovery Time': string;
 };
 
 type GroupedData = Record<
@@ -49,15 +49,15 @@ export async function handler(event: APIGatewayProxyEvent, context: Context): Pr
     
     try {
         if (!isNonEmptyString(S3_BUCKET)) {
-            throw TypeError("S3_BUCKET environment variable is invalid or missing.");
+            throw TypeError('S3_BUCKET environment variable is invalid or missing.');
         }
         
         if (!isNonEmptyString(FILE_NAME)) {
-            throw TypeError("FILE_NAME environment variable is invalid or missing.");
+            throw TypeError('FILE_NAME environment variable is invalid or missing.');
         }
         
         if (!isNonEmptyString(DB_TABLE)) {
-            throw TypeError("DB_TABLE environment variable is invalid or missing.");
+            throw TypeError('DB_TABLE environment variable is invalid or missing.');
         }
         
         const requestId = context.awsRequestId;
@@ -68,14 +68,14 @@ export async function handler(event: APIGatewayProxyEvent, context: Context): Pr
         const data = getObjectResponse.Body;
         
         if (!data?.transformToString) {
-            throw TypeError("Expected Body to be a Readable stream");
+            throw TypeError('Expected Body to be a Readable stream');
         }
         
         const csvText = await data.transformToString();
         const averages = await processCSVData(csvText);
         
         console.log(JSON.stringify({
-            msg: "Data",
+            msg: 'Data',
             averages,
         }, null, 2));
         
@@ -84,7 +84,7 @@ export async function handler(event: APIGatewayProxyEvent, context: Context): Pr
         return {
             statusCode: 200,
             body: JSON.stringify({
-                message: "Ok",
+                message: 'Ok',
             }),
         };
     } catch(err) {
@@ -92,7 +92,7 @@ export async function handler(event: APIGatewayProxyEvent, context: Context): Pr
         return {
             statusCode: 500,
             body: JSON.stringify({
-                message: "Internal error",
+                message: 'Internal error',
             }),
         };
     }
@@ -113,7 +113,7 @@ async function processCSVData(data: string): Promise<Average[]> {
                     Diagnosis: diagnosis,
                     Treatment: treatment,
                 } = row;
-                const recoveryTime = parseFloat(row["Recovery Time"]);
+                const recoveryTime = parseFloat(row['Recovery Time']);
                 
                 if (!groupedData[hospital]) {
                     groupedData[hospital] = {};
@@ -127,13 +127,13 @@ async function processCSVData(data: string): Promise<Average[]> {
                     };
                 }
                 
-                if (!groupedData[hospital][diagnosis]["treatments"][treatment]) {
-                    groupedData[hospital][diagnosis]["treatments"][treatment] = 0;
+                if (!groupedData[hospital][diagnosis]['treatments'][treatment]) {
+                    groupedData[hospital][diagnosis]['treatments'][treatment] = 0;
                 }
                 
                 groupedData[hospital][diagnosis].totalRecoveryTime += recoveryTime;
                 groupedData[hospital][diagnosis].count += 1;
-                groupedData[hospital][diagnosis]["treatments"][treatment] += 1;
+                groupedData[hospital][diagnosis]['treatments'][treatment] += 1;
             });
             
             const averages: Average[] = [];
@@ -180,7 +180,7 @@ async function getObjectFromBucket(filePath: string, bucket: string): Promise<Ge
         return s3Client.send(command);
     } catch(err: unknown) {
         console.error(err);
-        throw "getObjectFromBucket: Expected to get object from s3 bucket"
+        throw 'getObjectFromBucket: Expected to get object from s3 bucket'
     }
 }
 
@@ -221,10 +221,10 @@ async function writeDataToDB(averages: Average[], requestId: string, dynamoDBTab
         }
     } catch(err: unknown) {
         console.error(err);
-        throw "writeDataToDB: Expected to have written to dynamoDB table";
+        throw 'writeDataToDB: Expected to have written to dynamoDB table';
     }
 }
 
 function isNonEmptyString(input: unknown): input is string {
-    return typeof input === "string" && input.length > 0;
+    return typeof input === 'string' && input.length > 0;
 }

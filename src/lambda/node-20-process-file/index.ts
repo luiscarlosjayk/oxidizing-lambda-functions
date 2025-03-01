@@ -1,8 +1,8 @@
-import { Context } from "aws-lambda";
-import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
-import { BatchWriteItemCommand, BatchWriteItemCommandInput, DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { Readable, pipeline, Transform, Writable } from "stream";
-import { promisify } from "util";
+import { BatchWriteItemCommand, BatchWriteItemCommandInput, DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { Context } from 'aws-lambda';
+import { pipeline, Readable, Transform, Writable } from 'stream';
+import { promisify } from 'util';
 
 // Types
 type AverageRecoveryTimesMapValueType = {
@@ -23,17 +23,17 @@ const dynamoDBClient = new DynamoDBClient();
 const { DB_TABLE, S3_BUCKET, FILE_NAME } = process.env;
 
 // Local testing
-// const DB_TABLE = "oxidizing-lambda-functions-node-20-hospital-averages-table";
-// const S3_BUCKET = "oxidizing-lambda-functions-assets-source";
-// const FILE_NAME = "one_million_rows_medical_records.csv";
-// const FILE_NAME = "one_hundred_medical_records.csv";
+// const DB_TABLE = 'oxidizing-lambda-functions-node-20-hospital-averages-table';
+// const S3_BUCKET = 'oxidizing-lambda-functions-assets-source';
+// const FILE_NAME = 'one_million_rows_medical_records.csv';
+// const FILE_NAME = 'one_hundred_medical_records.csv';
 
 export async function handler(_: unknown, context: Context) {
-    console.time("handler");
+    console.time('handler');
     try {
-        if (!isNonEmptyString(S3_BUCKET)) throw TypeError("S3_BUCKET environment variable is invalid or missing.");
-        if (!isNonEmptyString(FILE_NAME)) throw TypeError("FILE_NAME environment variable is invalid or missing.");
-        if (!isNonEmptyString(DB_TABLE)) throw TypeError("DB_TABLE environment variable is invalid or missing.");
+        if (!isNonEmptyString(S3_BUCKET)) throw TypeError('S3_BUCKET environment variable is invalid or missing.');
+        if (!isNonEmptyString(FILE_NAME)) throw TypeError('FILE_NAME environment variable is invalid or missing.');
+        if (!isNonEmptyString(DB_TABLE)) throw TypeError('DB_TABLE environment variable is invalid or missing.');
 
         // Read and process CSV data
         const averages = await processCsvData(S3_BUCKET, FILE_NAME);
@@ -41,7 +41,7 @@ export async function handler(_: unknown, context: Context) {
         // Store results in DynamoDB table
         await storeResultsInDynamoDB(averages, context.awsRequestId, DB_TABLE);
         
-        console.info("File processed successfully");
+        console.info('File processed successfully');
     } catch(err: unknown) {
         console.error(err);
         throw err;
@@ -55,7 +55,7 @@ async function processCsvData(bucket: string, key: string): Promise<AverageRecov
     // Aggregation storage
     const averageRecoveryTimes: AverageRecoveryTimesMap = new Map();
     
-    let leftOver = ""; // Possible remaining incomplete line
+    let leftOver = ''; // Possible remaining incomplete line
     let isFirstLine = true; // Helper flag to remove headers at first line
     const lineSplitter = new Transform({
         readableObjectMode: true,
@@ -70,7 +70,7 @@ async function processCsvData(bucket: string, key: string): Promise<AverageRecov
             }
             
             // Removes and stores last possible partial line from the chunk
-            leftOver = lines.pop() || "";
+            leftOver = lines.pop() || '';
 
             this.push(lines);
             callback();
@@ -94,7 +94,7 @@ async function processCsvData(bucket: string, key: string): Promise<AverageRecov
                     callback(new Error(`Expected an array of lines, but got: ${typeof lines}`));
                 }
             } catch (err: unknown) {
-                console.error(`Failed to process lines: ${lines.join(", ")}`, err);
+                console.error(`Failed to process lines: ${lines.join(', ')}`, err);
             }
 
             callback();
@@ -112,7 +112,7 @@ async function processCsvData(bucket: string, key: string): Promise<AverageRecov
 
 function processLines(lines: string[], averageRecoveryTimes: AverageRecoveryTimesMap): void {
     lines.forEach((line) =>{
-        const columns = line.split(",");
+        const columns = line.split(',');
 
         if (columns.length !== 4) {
             throw new Error(`Expected line to have four columns, instead found: ${columns.length}`);
@@ -154,7 +154,7 @@ async function getS3Stream(bucket: string, key: string): Promise<Readable> {
     const { Body } = await s3Client.send(command);
     
     if (!isReadable(Body)) {
-        throw TypeError("Expected Body to be a Readable stream");
+        throw TypeError('Expected Body to be a Readable stream');
     }
     
     return Body;
@@ -210,42 +210,42 @@ function isReadable(input: unknown): input is Readable {
 }
 
 function isNonEmptyString(input: unknown): input is string {
-    return typeof input === "string" && input.length > 0;
+    return typeof input === 'string' && input.length > 0;
 }
 
 function logMemoryUsage() {
-    console.log("=================================");
+    console.log('=================================');
     const used = process.memoryUsage();
     const heapUsed = used.heapUsed / 1024 / 1024;
     const heapTotal = used.heapTotal / 1024 / 1024;
     console.log(`The script uses approximately ${Math.round(heapUsed * 100) / 100} MB of a total ${Math.round(heapTotal)} MB`);
-    console.timeEnd("handler");
-    console.log("=================================");
+    console.timeEnd('handler');
+    console.log('=================================');
 }
 
 
 // Local testing
 function localTesting() {
     handler(null, {
-        awsRequestId: "123",
+        awsRequestId: '123',
         callbackWaitsForEmptyEventLoop: false,
-        functionName: "",
-        functionVersion: "",
-        invokedFunctionArn: "",
-        memoryLimitInMB: "",
-        logGroupName: "",
-        logStreamName: "",
+        functionName: '',
+        functionVersion: '',
+        invokedFunctionArn: '',
+        memoryLimitInMB: '',
+        logGroupName: '',
+        logStreamName: '',
         getRemainingTimeInMillis: function (): number {
-            throw new Error("Function not implemented.");
+            throw new Error('Function not implemented.');
         },
         done: function (error?: Error, result?: any): void {
-            throw new Error("Function not implemented.");
+            throw new Error('Function not implemented.');
         },
         fail: function (error: Error | string): void {
-            throw new Error("Function not implemented.");
+            throw new Error('Function not implemented.');
         },
         succeed: function (messageOrObject: any): void {
-            throw new Error("Function not implemented.");
+            throw new Error('Function not implemented.');
         }
     });
 }
