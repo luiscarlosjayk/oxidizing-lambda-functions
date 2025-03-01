@@ -1,13 +1,13 @@
-import { Construct } from "constructs";
-import * as lambda from "aws-cdk-lib/aws-lambda";
-import { LambdaConstruct, LambdaConstructProps } from "./lambda-construct";
-import * as nodePath from "node:path";
-import * as utils from "../utils";
-import * as pythonLambda from "@aws-cdk/aws-lambda-python-alpha";
+import * as pythonLambda from '@aws-cdk/aws-lambda-python-alpha';
+import * as lambda from 'aws-cdk-lib/aws-lambda';
+import { Construct } from 'constructs';
+import * as nodePath from 'node:path';
+import * as utils from '../utils';
+import { LambdaConstruct, LambdaConstructProps } from './lambda-construct';
 
 export interface PythonLambdaConstructProps extends LambdaConstructProps {
-    handler?: pythonLambda.PythonFunctionProps["handler"];
-    index?: pythonLambda.PythonFunctionProps["index"];
+    handler?: pythonLambda.PythonFunctionProps['handler'];
+    index?: pythonLambda.PythonFunctionProps['index'];
 };
 
 export class PythonLambdaConstruct extends LambdaConstruct {

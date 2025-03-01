@@ -1,10 +1,10 @@
-import { Construct } from "constructs";
-import { RustFunction } from "cargo-lambda-cdk";
-import * as lambda from "aws-cdk-lib/aws-lambda";
-import { LambdaConstruct, LambdaConstructProps } from "./lambda-construct";
-import * as nodePath from "node:path";
-import * as utils from "../utils";
-import { Environment } from "../types";
+import * as lambda from 'aws-cdk-lib/aws-lambda';
+import { RustFunction } from 'cargo-lambda-cdk';
+import { Construct } from 'constructs';
+import * as nodePath from 'node:path';
+import { Environment } from '../types';
+import * as utils from '../utils';
+import { LambdaConstruct, LambdaConstructProps } from './lambda-construct';
 
 export interface RustLambdaConstructProps extends LambdaConstructProps {};
 

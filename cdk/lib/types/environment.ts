@@ -1,6 +1,6 @@
-import { Duration } from "aws-cdk-lib";
+import { Duration } from 'aws-cdk-lib';
 
-export type EnvironmentRegion = "us-east-1" | "us-west-2";
+export type EnvironmentRegion = 'us-east-1' | 'us-west-2';
 
 export type Environment = {
   appName: string;
@@ -23,13 +23,13 @@ export type Environment = {
 export enum NUMBER_OF_ROWS {
   /**
    * CSV file containing ten thousand rows of medical records.
-   * Value: "ten_thousand_rows_medical_records.csv"
+   * Value: 'ten_thousand_rows_medical_records.csv'
    */
-  TEN_THOUSAND = "ten_thousand_rows_medical_records.csv",
+  TEN_THOUSAND = 'ten_thousand_rows_medical_records.csv',
 
   /**
    * CSV file containing one million rows of medical records.
-   * Value: "one_million_rows_medical_records.csv"
+   * Value: 'one_million_rows_medical_records.csv'
    */
-  ONE_MILLION = "one_million_rows_medical_records.csv",
+  ONE_MILLION = 'one_million_rows_medical_records.csv',
 }

@@ -1,12 +1,12 @@
-import * as iam from "aws-cdk-lib/aws-iam";
-import * as lambda from "aws-cdk-lib/aws-lambda";
-import * as utils from "../utils";
-import { Construct } from "constructs";
-import { Environment } from "../types";
-import * as cdk from "aws-cdk-lib";
-import * as nodejsLambda from "aws-cdk-lib/aws-lambda-nodejs";
-import * as logs from "aws-cdk-lib/aws-logs";
-import { S3BucketConstruct, DynamoDBTableConstruct } from ".";
+import * as cdk from 'aws-cdk-lib';
+import * as iam from 'aws-cdk-lib/aws-iam';
+import * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as nodejsLambda from 'aws-cdk-lib/aws-lambda-nodejs';
+import * as logs from 'aws-cdk-lib/aws-logs';
+import { Construct } from 'constructs';
+import { DynamoDBTableConstruct, S3BucketConstruct } from '.';
+import { Environment } from '../types';
+import * as utils from '../utils';
 
 export interface LambdaConstructProps {
     name: string;
@@ -53,7 +53,7 @@ export class LambdaConstruct extends Construct {
          */
         this.role = new iam.Role(this, `Role${id}`, {
             assumedBy: new iam.CompositePrincipal(
-                new iam.ServicePrincipal("lambda.amazonaws.com")
+                new iam.ServicePrincipal('lambda.amazonaws.com')
             ),
             managedPolicies: [
                 iam.ManagedPolicy.fromAwsManagedPolicyName(`service-role/AWSLambdaVPCAccessExecutionRole`),
@@ -99,7 +99,7 @@ export class LambdaConstruct extends Construct {
 
     protected grantPermissions(props: LambdaConstructProps) {
         if (!this.role) {
-            throw TypeError("Expected this.role to be defined before calling grantPermissions method");
+            throw TypeError('Expected this.role to be defined before calling grantPermissions method');
         }
         
         // Grant read and write permissions to DynamoDB table
@@ -121,24 +121,24 @@ export class LambdaConstruct extends Construct {
         return [
             {
                 effect: iam.Effect.ALLOW,
-                resources: ["*"],
+                resources: ['*'],
                 actions: [
-                    "logs:CreateLogGroup",
-                    "logs:CreateLogStream",
-                    "logs:DescribeLogGroups",
-                    "logs:DescribeLogStreams",
-                    "logs:PutLogEvents"
+                    'logs:CreateLogGroup',
+                    'logs:CreateLogStream',
+                    'logs:DescribeLogGroups',
+                    'logs:DescribeLogStreams',
+                    'logs:PutLogEvents'
                 ]
             },
             {
                 effect: iam.Effect.ALLOW,
-                resources: ["*"],
+                resources: ['*'],
                 actions: [
-                    "ec2:DescribeNetworkInterfaces",
-                    "ec2:CreateNetworkInterface",
-                    "ec2:DeleteNetworkInterface",
-                    "ec2:DescribeInstances",
-                    "ec2:AttachNetworkInterface"
+                    'ec2:DescribeNetworkInterfaces',
+                    'ec2:CreateNetworkInterface',
+                    'ec2:DeleteNetworkInterface',
+                    'ec2:DescribeInstances',
+                    'ec2:AttachNetworkInterface'
                 ]
             },
         ];

@@ -1,6 +1,6 @@
-import { FoundationModelIdentifier } from "aws-cdk-lib/aws-bedrock";
-import { Effect, type PolicyStatementProps } from "aws-cdk-lib/aws-iam";
-import * as cdk from "aws-cdk-lib";
+import * as cdk from 'aws-cdk-lib';
+import { FoundationModelIdentifier } from 'aws-cdk-lib/aws-bedrock';
+import { Effect, type PolicyStatementProps } from 'aws-cdk-lib/aws-iam';
 
 export function createSecretsManagerPolicyStatementProps(
     secretArn: string,
@@ -8,8 +8,8 @@ export function createSecretsManagerPolicyStatementProps(
     effect = Effect.ALLOW,
   ): PolicyStatementProps {
     actions ??= [ // Default actions if none are passed
-        "secretsmanager:GetSecretValue",
-        "secretsmanager:DescribeSecret",
+        'secretsmanager:GetSecretValue',
+        'secretsmanager:DescribeSecret',
     ];
 
     return {
@@ -25,9 +25,9 @@ export function createS3BucketPolicyStatementProps(
     effect = Effect.ALLOW
 ): PolicyStatementProps {
     actions ??= [ // Default actions if none are passed
-        "s3:PutObject",
-        "s3:ListBucket",
-        "s3:GetObject",
+        's3:PutObject',
+        's3:ListBucket',
+        's3:GetObject',
     ];
 
     return {
@@ -43,14 +43,14 @@ export function createDynamoDbTablePolicyStatementProps(
     effect = Effect.ALLOW
 ): PolicyStatementProps {
     actions??= [ // Default actions if none are passed
-        "dynamodb:Scan",
-        "dynamodb:Query",
-        "dynamodb:GetItem",
-        "dynamodb:PutItem",
-        "dynamodb:UpdateItem",
-        "dynamodb:DeleteItem",
-        "dynamodb:BatchGetItem",
-        "dynamodb:BatchWriteItem",
+        'dynamodb:Scan',
+        'dynamodb:Query',
+        'dynamodb:GetItem',
+        'dynamodb:PutItem',
+        'dynamodb:UpdateItem',
+        'dynamodb:DeleteItem',
+        'dynamodb:BatchGetItem',
+        'dynamodb:BatchWriteItem',
     ];
 
     return {
@@ -69,7 +69,7 @@ export function createDatabaseClusterPolicyStatementProps(
     effect = Effect.ALLOW,
 ): PolicyStatementProps[] {
     actions??= [
-        "rds-db:connect",
+        'rds-db:connect',
     ];
     const resources = dbClusterResourceIds.map(
         (dbClusterResourceId) => `arn:aws:rds-db:${region}:${account}:dbuser:${dbClusterResourceId}/${dbUserName}`
@@ -87,10 +87,10 @@ export function createBedrockFoundationModelPolicyStatementProps(
     actions?: string[]
 ): PolicyStatementProps {
     actions??= [ // Default actions if none are passed
-        "bedrock:InvokeModel",
-        "bedrock:InvokeModelWithResponseStream",
+        'bedrock:InvokeModel',
+        'bedrock:InvokeModelWithResponseStream',
     ];
-    const modelId = typeof bedrockModelIdentifier ==="string"
+    const modelId = typeof bedrockModelIdentifier ==='string'
         ? bedrockModelIdentifier
         : bedrockModelIdentifier.modelId;
 

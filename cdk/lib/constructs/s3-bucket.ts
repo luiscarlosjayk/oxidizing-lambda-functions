@@ -1,10 +1,10 @@
-import { Construct } from "constructs";
-import { Environment } from "../types";
-import { getStackPrefix } from "../utils";
-import { RemovalPolicy } from "aws-cdk-lib";
-import * as s3 from "aws-cdk-lib/aws-s3";
-import * as s3deploy from "aws-cdk-lib/aws-s3-deployment";
-import { ASSETS_BASEPATH } from "../utils/constants";
+import { RemovalPolicy } from 'aws-cdk-lib';
+import * as s3 from 'aws-cdk-lib/aws-s3';
+import * as s3deploy from 'aws-cdk-lib/aws-s3-deployment';
+import { Construct } from 'constructs';
+import { Environment } from '../types';
+import { getStackPrefix } from '../utils';
+import { ASSETS_BASEPATH } from '../utils/constants';
 
 export interface S3BucketConstructProps {
     environment: Environment;
@@ -36,7 +36,7 @@ export class S3BucketConstruct extends Construct {
 
         // This uploads files in the /assets directory to the bucket
         if (withAssets) {
-            new s3deploy.BucketDeployment(this, "UploadAssetsDeployment", {
+            new s3deploy.BucketDeployment(this, 'UploadAssetsDeployment', {
                 sources: [s3deploy.Source.asset(ASSETS_BASEPATH)],
                 destinationBucket: this.bucket,
             });

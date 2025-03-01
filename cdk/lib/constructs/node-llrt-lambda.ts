@@ -1,8 +1,8 @@
-import { Construct } from "constructs";
-import * as llrtLambda from "cdk-lambda-llrt";
-import { LambdaConstruct, LambdaConstructProps } from "./lambda-construct";
-import * as nodePath from "node:path";
-import * as utils from "../utils";
+import * as llrtLambda from 'cdk-lambda-llrt';
+import { Construct } from 'constructs';
+import * as nodePath from 'node:path';
+import * as utils from '../utils';
+import { LambdaConstruct, LambdaConstructProps } from './lambda-construct';
 
 export interface NodeLlrtLambdaConstructProps extends LambdaConstructProps {};
 
@@ -25,10 +25,10 @@ export class NodeLlrtLambdaConstruct extends LambdaConstruct {
             layers: props.layers,
             bundling: {
                 externalModules: [
-                    "@aws-sdk/*",
+                    '@aws-sdk/*',
                 ],
                 esbuildArgs: {
-                    "--platform": "browser",
+                    '--platform': 'browser',
                 },
                 ...props.bundling,
                 // forceDockerBundling: true, // Reference: https://constructs.dev/packages/cdk-lambda-llrt/v/0.0.11?lang=typescript

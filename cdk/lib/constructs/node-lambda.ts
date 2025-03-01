@@ -1,9 +1,9 @@
-import { LambdaConstruct, LambdaConstructProps } from "./lambda-construct";
-import * as lambda from "aws-cdk-lib/aws-lambda";
-import * as nodejsLambda from "aws-cdk-lib/aws-lambda-nodejs";
-import * as nodePath from "node:path";
-import * as utils from "../utils";
-import { Construct } from "constructs";
+import * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as nodejsLambda from 'aws-cdk-lib/aws-lambda-nodejs';
+import { Construct } from 'constructs';
+import * as nodePath from 'node:path';
+import * as utils from '../utils';
+import { LambdaConstruct, LambdaConstructProps } from './lambda-construct';
 
 export interface Node20LambdaConstructProps extends LambdaConstructProps {};
 
@@ -27,7 +27,7 @@ export class NodeLambdaConstruct extends LambdaConstruct {
             layers: props.layers,
             bundling: {
                 externalModules: [
-                    "@aws-sdk/*",
+                    '@aws-sdk/*',
                 ],
                 ...props.bundling,
             },

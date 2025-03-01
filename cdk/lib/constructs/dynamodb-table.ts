@@ -1,8 +1,8 @@
-import type { Environment } from "../types";
-import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
-import * as cdk from "aws-cdk-lib";
-import { Construct } from "constructs";
-import { getStackPrefix } from "../utils";
+import * as cdk from 'aws-cdk-lib';
+import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
+import { Construct } from 'constructs';
+import type { Environment } from '../types';
+import { getStackPrefix } from '../utils';
 
 export interface DynamoDBTableProps extends dynamodb.TableProps {
     tableName: string;
